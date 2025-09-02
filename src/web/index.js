@@ -31,6 +31,7 @@ async function initializeTracker() {
     logger.info('🎮 Tracker instance initialized for web interface');
   } catch (error) {
     logger.error('❌ Failed to initialize tracker instance:', error);
+    throw error;
   }
 }
 
@@ -156,10 +157,9 @@ app.get('/companies', async (req, res) => {
     }
   } catch (error) {
     logger.error('❌ Failed to load companies:', error);
-    res.json({
-      companies: [],
-      count: 0,
+    res.status(500).json({
       error: 'Failed to load companies',
+      details: error.message,
       lastUpdated: new Date().toISOString()
     });
   }

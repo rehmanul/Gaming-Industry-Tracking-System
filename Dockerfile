@@ -1,12 +1,7 @@
-# Gaming Company Tracker - Render.com Optimized Dockerfile
-FROM node:20-bullseye-slim
+# Use official Node 18 slim image
+FROM node:18-bullseye-slim
 
-# Set metadata
-LABEL maintainer="Gaming Company Tracker"
-LABEL description="Automated gaming industry tracking for Render.com"
-LABEL version="1.0.0"
-
-# Install system dependencies for Puppeteer and Render
+# System dependencies for Puppeteer & Chromium
 RUN apt-get update && apt-get install -y \
     chromium \
     fonts-liberation \
@@ -17,6 +12,8 @@ RUN apt-get update && apt-get install -y \
     libcups2 \
     libdbus-1-3 \
     libdrm2 \
+    libgbm1 \
+    libglib2.0-0 \
     libgtk-3-0 \
     libnspr4 \
     libnss3 \
@@ -24,49 +21,32 @@ RUN apt-get update && apt-get install -y \
     libxcomposite1 \
     libxdamage1 \
     libxrandr2 \
-    xdg-utils \
     libxss1 \
-    libgconf-2-4 \
-    curl \
+    libxtst6 \
+    wget \
+    unzip \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Configure Puppeteer to use installed Chromium
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
-    NODE_ENV=production \
-    PORT=10000
-
-# Create app directory
+# Set working directory
 WORKDIR /app
 
-# Copy package files for better Docker layer caching
+# Copy package.json and install dependencies
 COPY package*.json ./
+RUN npm ci --only=production && npm cache clean --force
 
-# Install dependencies
-RUN npm ci --only=production && \
-    npm cache clean --force
+# Create logs folder
+RUN mkdir -p logs && chmod 755 logs
 
-# Create required directories with proper permissions
-RUN mkdir -p logs && \
-    chmod 755 logs
-
-# Create non-root user for security
-RUN groupadd -r nodejs && \
-    useradd -r -g nodejs nodejs && \
-    chown -R nodejs:nodejs /app
-
-# Copy application source
-COPY src/ ./src/
-
-# Switch to non-root user
+# Add non-root user
+RUN groupadd -r nodejs && useradd -r -g nodejs nodejs && chown -R nodejs:nodejs /app
 USER nodejs
 
-# Expose Render's port
-EXPOSE 10000
+# Copy source code
+COPY src/ ./src/
 
-# Health check for Render
-HEALTHCHECK --interval=5m --timeout=30s --start-period=2m --retries=3 \
-  CMD ["node","src/app.js"]
+# Expose port (Render will override with $PORT)
+EXPOSE 3000
 
-CMD ["node","src/app.js"]
+# Start the app
+CMD ["node", "src/index.js"]

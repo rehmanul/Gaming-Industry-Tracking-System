@@ -1,0 +1,51 @@
+# Render.com Configuration for Gaming Company Tracker
+services:
+  - type: web
+    name: gaming-company-tracker
+    runtime: docker
+    plan: starter  # or standard/pro for better performance
+    region: oregon  # or singapore for better latency to your region
+
+    # Build configuration
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+
+    # Environment variables (set these in Render dashboard)
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000  # Render's default port
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: true
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/chromium-browser
+
+    # Health check
+    healthCheckPath: /health
+
+    # Auto-deploy from main branch
+    autoDeploy: true
+
+    # Build command (optional, uses Dockerfile by default)
+    # buildCommand: npm ci --only=production
+
+    # Start command (defined in Dockerfile)
+    # startCommand: npm start
+
+    # Disk storage for logs (optional)
+    disk:
+      name: tracker-storage
+      mountPath: /app/logs
+      sizeGB: 1
+
+# Optional: Add a cron job service for scheduled tasks
+  - type: cron
+    name: gaming-tracker-health-check
+    runtime: node
+    schedule: "0 */6 * * *"  # Every 6 hours
+    buildCommand: npm ci --only=production
+    startCommand: node scripts/health-check.js
+    envVars:
+      - key: NODE_ENV
+        value: production

@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  gaming-company-tracker:
+    build: .
+    container_name: gaming-company-tracker
+    restart: unless-stopped
+
+    # Environment configuration
+    environment:
+      - NODE_ENV=production
+      - TZ=UTC
+
+    # Load environment variables from .env file
+    env_file:
+      - .env
+
+    # Volume mounts
+    volumes:
+      - ./logs:/app/logs:rw
+      - ./credentials.json:/app/credentials.json:ro
+      - /etc/localtime:/etc/localtime:ro
+
+    # Network configuration
+    networks:
+      - tracker-network
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('OK')"]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+
+# Network configuration
+networks:
+  tracker-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Optional: Add monitoring with Portainer or other tools
+# volumes:
+#   portainer_data:
+
+# services:
+#   portainer:
+#     image: portainer/portainer-ce
+#     container_name: portainer
+#     restart: unless-stopped
+#     ports:
+#       - "9000:9000"
+#     volumes:
+#       - /var/run/docker.sock:/var/run/docker.sock
+#       - portainer_data:/data
+#     networks:
+#       - tracker-network

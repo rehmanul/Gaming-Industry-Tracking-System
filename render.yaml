@@ -1,18 +1,31 @@
+# Render deployment configuration
 services:
-  - type: web
-    name: gaming-tracker
+  # Worker service: runs tracker in background
+  - type: worker
+    name: gaming-tracker-worker
     env: docker
     plan: starter
     dockerfilePath: ./Dockerfile
+    startCommand: npm start
     envVars:
       - key: DOCKER_ENV
         value: "True"
       - key: HEADLESS_MODE
         value: "true"
-      - key: SERVER_PORT
-        value: "3000"
-      # Add all your other secrets here (Render secret envs)
-      # GOOGLE_PRIVATE_KEY, PDL_API_KEY, SLACK_TOKEN, GMAIL_APP_PASSWORD, etc.
+      # add all your other secrets from your .env
     autoDeploy: true
-    healthCheckPath: /health
-    instanceCount: 1
+
+  # Web service: runs web UI to control tracker
+  - type: web
+    name: gaming-tracker-ui
+    env: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    startCommand: npm run web
+    envVars:
+      - key: DOCKER_ENV
+        value: "True"
+      - key: HEADLESS_MODE
+        value: "true"
+      # add all your other secrets from your .env
+    autoDeploy: true

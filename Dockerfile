@@ -58,11 +58,8 @@ RUN groupadd -r nodejs && \
 
 # Copy application source
 COPY src/ ./src/
-COPY scripts/ ./scripts/
 
 # Copy startup script
-COPY start.sh ./
-RUN chmod +x start.sh && chown nodejs:nodejs start.sh
 
 # Switch to non-root user
 USER nodejs
@@ -72,7 +69,6 @@ EXPOSE 10000
 
 # Health check for Render
 HEALTHCHECK --interval=5m --timeout=30s --start-period=2m --retries=3 \
-    CMD curl -f http://localhost:10000/health || exit 1
-
+CMD ["node","src/app.js"]
 # Start the application
-CMD ["./start.sh"]
+CMD ["node","src/app.js"]

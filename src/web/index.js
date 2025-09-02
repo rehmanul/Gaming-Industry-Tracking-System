@@ -51,7 +51,8 @@ app.get('/status', (req, res) => {
 // Health check
 app.get('/health', (req, res) => res.send('OK'));
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-  logger.info(`Web UI running on port ${PORT}`);
+  logger.info(`🌐 Gaming Tracker Web UI running on port ${PORT}`);
+  logger.info(`🔗 Health check available at http://localhost:${PORT}/health`);
 });

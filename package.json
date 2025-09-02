@@ -10,6 +10,7 @@
     "test": "jest",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
+    "deploy-check": "node scripts/deploy-check.js",
     "docker:build": "docker build -t gaming-company-tracker .",
     "docker:run": "docker-compose up -d",
     "docker:stop": "docker-compose down",
@@ -40,8 +41,10 @@
   "dependencies": {
     "@slack/web-api": "^6.12.0",
     "axios": "^1.6.2",
+    "body-parser": "^1.20.2",
     "cheerio": "^1.0.0-rc.12",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "googleapis": "^128.0.0",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.7",

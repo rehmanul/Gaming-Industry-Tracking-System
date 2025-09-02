@@ -47,8 +47,12 @@ COPY src/ ./src/
 # Use non-root user
 USER nodejs
 
-# Expose web UI port
-EXPOSE 3000
+# Set Puppeteer to use system Chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+
+# Expose web UI port (Render uses PORT env var)
+EXPOSE 10000
 
 # Default command (can be overridden in Render)
 CMD ["npm", "start"]

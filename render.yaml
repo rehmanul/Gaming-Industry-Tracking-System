@@ -1,20 +1,5 @@
 # Render deployment configuration
 services:
-  # Worker service: runs tracker in background
-  - type: worker
-    name: gaming-tracker-worker
-    env: docker
-    plan: starter
-    dockerfilePath: ./Dockerfile
-    startCommand: npm start
-    envVars:
-      - key: DOCKER_ENV
-        value: "True"
-      - key: HEADLESS_MODE
-        value: "true"
-      # add all your other secrets from your .env
-    autoDeploy: true
-
   # Web service: runs web UI to control tracker
   - type: web
     name: gaming-tracker-ui
@@ -22,10 +7,25 @@ services:
     plan: starter
     dockerfilePath: ./Dockerfile
     startCommand: npm run web
+    healthCheckPath: /health
     envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
       - key: DOCKER_ENV
-        value: "True"
+        value: "true"
       - key: HEADLESS_MODE
         value: "true"
-      # add all your other secrets from your .env
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: "/usr/bin/chromium"
+      # Add your environment variables here:
+      # - key: PEOPLE_DATA_LABS_API_KEY_1
+      #   sync: false
+      # - key: GOOGLE_SHEET_ID
+      #   sync: false
+      # - key: SLACK_BOT_TOKEN
+      #   sync: false
+      # - key: SLACK_CHANNEL_ID
+      #   sync: false
     autoDeploy: true

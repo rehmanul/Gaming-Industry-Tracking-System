@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gaming Tracker Control Panel</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+  h1 { text-align: center; }
+  button { padding: 10px 20px; margin: 5px; font-size: 16px; }
+  #status { margin-top: 20px; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>Gaming Tracker Control Panel</h1>
+<div style="text-align: center;">
+  <button onclick="startTracker()">Start Tracker</button>
+  <button onclick="stopTracker()">Stop Tracker</button>
+  <div id="status">Status: unknown</div>
+</div>
+
+<script>
+async function fetchStatus() {
+  const res = await fetch('/status');
+  const data = await res.json();
+  document.getElementById('status').innerText = 'Status: ' + data.status;
+}
+
+async function startTracker() {
+  await fetch('/start', { method: 'POST' });
+  fetchStatus();
+}
+
+async function stopTracker() {
+  await fetch('/stop', { method: 'POST' });
+  fetchStatus();
+}
+
+// Update status every 5 seconds
+setInterval(fetchStatus, 5000);
+fetchStatus();
+</script>
+</body>
+</html>

@@ -70,5 +70,4 @@ EXPOSE 10000
 # Health check for Render
 HEALTHCHECK --interval=5m --timeout=30s --start-period=2m --retries=3 \
 CMD ["node","src/app.js"]
-# Start the application
 CMD ["node","src/app.js"]

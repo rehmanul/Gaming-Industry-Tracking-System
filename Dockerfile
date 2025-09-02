@@ -1,5 +1,5 @@
 # Gaming Company Tracker - Render.com Optimized Dockerfile
-FROM node:18-bullseye-slim
+FROM node:20-bullseye-slim
 
 # Set metadata
 LABEL maintainer="Gaming Company Tracker"
@@ -59,8 +59,6 @@ RUN groupadd -r nodejs && \
 # Copy application source
 COPY src/ ./src/
 
-# Copy startup script
-
 # Switch to non-root user
 USER nodejs
 
@@ -69,5 +67,6 @@ EXPOSE 10000
 
 # Health check for Render
 HEALTHCHECK --interval=5m --timeout=30s --start-period=2m --retries=3 \
-CMD ["node","src/app.js"]
+  CMD ["node","src/app.js"]
+
 CMD ["node","src/app.js"]

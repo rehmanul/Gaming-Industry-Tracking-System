@@ -1,5 +1,5 @@
-# Use Node 18 LTS slim image
-FROM node:18-bullseye-slim
+# Use Node 20 LTS slim image (matches engines.node requirement)
+FROM node:20-bullseye-slim
 
 # Set working directory
 WORKDIR /app
@@ -32,22 +32,22 @@ RUN apt-get update && apt-get install -y \
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install dependencies (omit dev for production)
+RUN npm ci --omit=dev && npm cache clean --force
 
 # Create logs directory
 RUN mkdir -p logs && chmod 755 logs
 
-# Add nodejs user
+# Add non-root user
 RUN groupadd -r nodejs && useradd -r -g nodejs nodejs && chown -R nodejs:nodejs /app
 
-# Copy all source code
+# Copy source code
 COPY src/ ./src/
 
-# Set user
+# Use non-root user
 USER nodejs
 
-# Expose port for web UI
+# Expose web UI port
 EXPOSE 3000
 
 # Default command (can be overridden in Render)

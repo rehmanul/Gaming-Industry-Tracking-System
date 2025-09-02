@@ -1,0 +1,57 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const { spawn } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+const logger = require('../utils/logger');
+
+const app = express();
+app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+let trackerProcess = null;
+
+// Start the tracker
+app.post('/start', (req, res) => {
+  if (trackerProcess) {
+    return res.json({ status: 'running' });
+  }
+
+  trackerProcess = spawn('node', ['app.js'], {
+    cwd: path.resolve(__dirname, '..'),
+    env: process.env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  trackerProcess.stdout.on('data', (data) => logger.info(`[TRACKER] ${data.toString()}`));
+  trackerProcess.stderr.on('data', (data) => logger.error(`[TRACKER] ${data.toString()}`));
+
+  trackerProcess.on('close', (code) => {
+    logger.info(`Tracker exited with code ${code}`);
+    trackerProcess = null;
+  });
+
+  res.json({ status: 'started' });
+});
+
+// Stop the tracker
+app.post('/stop', (req, res) => {
+  if (!trackerProcess) return res.json({ status: 'not running' });
+
+  trackerProcess.kill('SIGTERM');
+  trackerProcess = null;
+  res.json({ status: 'stopped' });
+});
+
+// Check status
+app.get('/status', (req, res) => {
+  res.json({ status: trackerProcess ? 'running' : 'stopped' });
+});
+
+// Health check
+app.get('/health', (req, res) => res.send('OK'));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  logger.info(`Web UI running on port ${PORT}`);
+});

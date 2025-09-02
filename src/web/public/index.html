@@ -3,42 +3,492 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gaming Tracker Control Panel</title>
+<title>Gaming Industry Tracker - Dashboard</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
-  h1 { text-align: center; }
-  button { padding: 10px 20px; margin: 5px; font-size: 16px; }
-  #status { margin-top: 20px; font-weight: bold; }
+:root {
+  --primary: #6366f1;
+  --primary-dark: #4f46e5;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --dark: #1f2937;
+  --light: #f9fafb;
+  --border: #e5e7eb;
+  --text: #374151;
+  --text-light: #6b7280;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  color: var(--text);
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.header {
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+}
+
+.header h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--primary), #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 8px;
+}
+
+.header p {
+  color: var(--text-light);
+  font-size: 1.1rem;
+}
+
+.dashboard {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.card {
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+.status-card {
+  text-align: center;
+}
+
+.status-indicator {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.status-running { background: linear-gradient(135deg, var(--success), #059669); }
+.status-stopped { background: linear-gradient(135deg, var(--danger), #dc2626); }
+.status-loading { background: linear-gradient(135deg, var(--warning), #d97706); animation: pulse 2s infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.controls {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, var(--danger), #dc2626);
+  color: white;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 16px;
+  background: rgba(255,255,255,0.5);
+  border-radius: 12px;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.stat-label {
+  color: var(--text-light);
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.logs-container {
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--dark);
+  border-radius: 8px;
+  padding: 16px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+}
+
+.log-entry {
+  margin-bottom: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.log-timestamp {
+  color: #64748b;
+  margin-right: 8px;
+}
+
+.log-info { color: #3b82f6; }
+.log-success { color: #10b981; }
+.log-warning { color: #f59e0b; }
+.log-error { color: #ef4444; }
+
+.companies-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.company-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.company-name {
+  font-weight: 600;
+}
+
+.company-status {
+  display: flex;
+  gap: 8px;
+}
+
+.badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-success { background: #dcfce7; color: #166534; }
+.badge-warning { background: #fef3c7; color: #92400e; }
+.badge-info { background: #dbeafe; color: #1e40af; }
+
+@media (max-width: 768px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+  
+  .header h1 {
+    font-size: 2rem;
+  }
+  
+  .controls {
+    flex-direction: column;
+  }
+}
 </style>
 </head>
 <body>
-<h1>Gaming Tracker Control Panel</h1>
-<div style="text-align: center;">
-  <button onclick="startTracker()">Start Tracker</button>
-  <button onclick="stopTracker()">Stop Tracker</button>
-  <div id="status">Status: unknown</div>
+<div class="container">
+  <div class="header">
+    <h1><i class="fas fa-gamepad"></i> Gaming Industry Tracker</h1>
+    <p>Advanced monitoring system for gaming companies, hiring trends, and job postings</p>
+  </div>
+
+  <div class="dashboard">
+    <div class="card status-card">
+      <h3>System Status</h3>
+      <div id="statusIndicator" class="status-indicator status-loading">
+        <i class="fas fa-circle-notch fa-spin"></i>
+      </div>
+      <div id="statusText">Checking status...</div>
+      <div id="uptime" class="stat-label"></div>
+      
+      <div class="controls">
+        <button id="startBtn" class="btn btn-primary" onclick="startTracker()">
+          <i class="fas fa-play"></i> Start Tracking
+        </button>
+        <button id="stopBtn" class="btn btn-danger" onclick="stopTracker()">
+          <i class="fas fa-stop"></i> Stop Tracking
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><i class="fas fa-chart-line"></i> Analytics</h3>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div id="totalHires" class="stat-value">0</div>
+          <div class="stat-label">Total Hires</div>
+        </div>
+        <div class="stat-item">
+          <div id="totalJobs" class="stat-value">0</div>
+          <div class="stat-label">Job Postings</div>
+        </div>
+        <div class="stat-item">
+          <div id="companiesCount" class="stat-value">0</div>
+          <div class="stat-label">Companies</div>
+        </div>
+        <div class="stat-item">
+          <div id="errorCount" class="stat-value">0</div>
+          <div class="stat-label">Errors</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card full-width">
+      <h3><i class="fas fa-building"></i> Monitored Companies</h3>
+      <div id="companiesList" class="companies-list">
+        <div style="text-align: center; padding: 40px; color: var(--text-light);">
+          <i class="fas fa-spinner fa-spin"></i> Loading companies...
+        </div>
+      </div>
+    </div>
+
+    <div class="card full-width">
+      <h3><i class="fas fa-terminal"></i> System Logs</h3>
+      <div id="logsContainer" class="logs-container">
+        <div class="log-entry log-info">
+          <span class="log-timestamp">[Loading...]</span>
+          <span>Dashboard initialized - connecting to tracker...</span>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
-async function fetchStatus() {
-  const res = await fetch('/status');
-  const data = await res.json();
-  document.getElementById('status').innerText = 'Status: ' + data.status;
+class TrackerDashboard {
+  constructor() {
+    this.isRunning = false;
+    this.stats = { totalHires: 0, totalJobs: 0, companiesLoaded: 0, errors: 0, uptime: 0 };
+    this.companies = [];
+    this.logs = [];
+    this.init();
+  }
+
+  init() {
+    this.updateStatus();
+    this.loadStats();
+    this.loadCompanies();
+    
+    setInterval(() => {
+      this.updateStatus();
+      this.loadStats();
+    }, 5000);
+    
+    setInterval(() => this.loadCompanies(), 30000);
+    
+    this.addLog('info', 'Dashboard connected successfully');
+  }
+
+  async updateStatus() {
+    try {
+      const response = await fetch('/status');
+      const data = await response.json();
+      
+      this.isRunning = data.status === 'running';
+      this.updateStatusUI();
+    } catch (error) {
+      this.addLog('error', 'Failed to fetch status: ' + error.message);
+    }
+  }
+
+  updateStatusUI() {
+    const indicator = document.getElementById('statusIndicator');
+    const text = document.getElementById('statusText');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    
+    if (this.isRunning) {
+      indicator.className = 'status-indicator status-running';
+      indicator.innerHTML = '<i class="fas fa-play"></i>';
+      text.textContent = 'System Running';
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+    } else {
+      indicator.className = 'status-indicator status-stopped';
+      indicator.innerHTML = '<i class="fas fa-stop"></i>';
+      text.textContent = 'System Stopped';
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+    }
+  }
+
+  async loadStats() {
+    try {
+      const response = await fetch('/stats');
+      const data = await response.json();
+      
+      this.stats = data;
+      this.updateStatsUI();
+    } catch (error) {
+      // Stats endpoint will be added
+    }
+  }
+
+  updateStatsUI() {
+    document.getElementById('totalHires').textContent = this.stats.totalHires || 0;
+    document.getElementById('totalJobs').textContent = this.stats.totalJobs || 0;
+    document.getElementById('companiesCount').textContent = this.stats.companiesLoaded || 0;
+    document.getElementById('errorCount').textContent = this.stats.errors || 0;
+    
+    if (this.stats.uptime) {
+      const hours = Math.floor(this.stats.uptime / 3600);
+      const minutes = Math.floor((this.stats.uptime % 3600) / 60);
+      document.getElementById('uptime').textContent = `Uptime: ${hours}h ${minutes}m`;
+    }
+  }
+
+  async loadCompanies() {
+    try {
+      const response = await fetch('/companies');
+      const data = await response.json();
+      
+      this.companies = data.companies || [];
+      this.updateCompaniesUI();
+    } catch (error) {
+      this.updateCompaniesUI();
+    }
+  }
+
+  updateCompaniesUI() {
+    const container = document.getElementById('companiesList');
+    
+    if (this.companies.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 40px; color: var(--text-light);">
+          <i class="fas fa-building"></i>
+          <p>No companies loaded yet</p>
+          <small>Companies will appear here once the tracker starts</small>
+        </div>
+      `;
+      return;
+    }
+    
+    container.innerHTML = this.companies.map(company => `
+      <div class="company-item">
+        <div>
+          <div class="company-name">${company.name}</div>
+          <small style="color: var(--text-light);">${company.domain || 'N/A'}</small>
+        </div>
+        <div class="company-status">
+          ${company.trackHiring ? '<span class="badge badge-success">Hiring</span>' : ''}
+          ${company.trackJobs ? '<span class="badge badge-info">Jobs</span>' : ''}
+          ${company.priority ? `<span class="badge badge-warning">${company.priority}</span>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  addLog(type, message) {
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = { type, message, timestamp };
+    
+    this.logs.unshift(logEntry);
+    if (this.logs.length > 50) this.logs.pop();
+    
+    this.updateLogsUI();
+  }
+
+  updateLogsUI() {
+    const container = document.getElementById('logsContainer');
+    
+    container.innerHTML = this.logs.map(log => `
+      <div class="log-entry log-${log.type}">
+        <span class="log-timestamp">[${log.timestamp}]</span>
+        <span>${log.message}</span>
+      </div>
+    `).join('');
+  }
+
+  async startTracker() {
+    try {
+      this.addLog('info', 'Starting tracker system...');
+      const response = await fetch('/start', { method: 'POST' });
+      const data = await response.json();
+      
+      this.addLog('success', 'Tracker started successfully');
+      this.updateStatus();
+    } catch (error) {
+      this.addLog('error', 'Failed to start tracker: ' + error.message);
+    }
+  }
+
+  async stopTracker() {
+    try {
+      this.addLog('info', 'Stopping tracker system...');
+      const response = await fetch('/stop', { method: 'POST' });
+      const data = await response.json();
+      
+      this.addLog('warning', 'Tracker stopped');
+      this.updateStatus();
+    } catch (error) {
+      this.addLog('error', 'Failed to stop tracker: ' + error.message);
+    }
+  }
 }
 
-async function startTracker() {
-  await fetch('/start', { method: 'POST' });
-  fetchStatus();
+const dashboard = new TrackerDashboard();
+
+function startTracker() {
+  dashboard.startTracker();
 }
 
-async function stopTracker() {
-  await fetch('/stop', { method: 'POST' });
-  fetchStatus();
+function stopTracker() {
+  dashboard.stopTracker();
 }
-
-// Update status every 5 seconds
-setInterval(fetchStatus, 5000);
-fetchStatus();
 </script>
 </body>
 </html>

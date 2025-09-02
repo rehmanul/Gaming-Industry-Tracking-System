@@ -65,4 +65,8 @@
     "url": "https://github.com/your-repo/gaming-company-tracker/issues"
   },
   "homepage": "https://github.com/your-repo/gaming-company-tracker#readme"
+},
+"scripts": {
+  "start": "node app.js",
+  "web": "node src/web/index.js"
 }

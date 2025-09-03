@@ -1,76 +1,131 @@
 version: '3.8'
 
 services:
-  gaming-company-tracker:
-    build: .
-    container_name: gaming-company-tracker
+  gaming-tracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: gaming-industry-tracker
     restart: unless-stopped
-
-    # Environment configuration
+    
+    ports:
+      - "3000:3000"
+    
     environment:
       - NODE_ENV=production
-      - TZ=UTC
-
-    # Load environment variables from .env file
+      - PORT=3000
+      - LOG_LEVEL=info
+      - ENABLE_HEALTH_CHECKS=true
+      - ENABLE_METRICS=true
+    
     env_file:
       - .env
-
-    # Volume mounts
+    
     volumes:
-      - ./logs:/app/logs:rw
+      - ./logs:/app/logs
       - ./credentials.json:/app/credentials.json:ro
       - /etc/localtime:/etc/localtime:ro
-
-    # Network configuration
+    
     networks:
-      - tracker-network
-
-    # Resource limits
+      - gaming-tracker-network
+    
+    depends_on:
+      - redis
+    
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (res) => { if (res.statusCode === 200) process.exit(0); else process.exit(1); }).on('error', () => process.exit(1));"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
     deploy:
       resources:
         limits:
           memory: 1G
-          cpus: '0.5'
+          cpus: '1.0'
         reservations:
           memory: 512M
-          cpus: '0.25'
-
-    # Logging configuration
+          cpus: '0.5'
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/logs
+    
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
-        max-file: "5"
+        max-file: "3"
 
-    # Health check
+  redis:
+    image: redis:7-alpine
+    container_name: gaming-tracker-redis
+    restart: unless-stopped
+    
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-defaultpassword}
+    
+    volumes:
+      - redis-data:/data
+    
+    networks:
+      - gaming-tracker-network
+    
     healthcheck:
-      test: ["CMD", "node", "-e", "console.log('OK')"]
-      interval: 5m
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 2m
+    
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+    
+    security_opt:
+      - no-new-privileges:true
 
-# Network configuration
+  nginx:
+    image: nginx:alpine
+    container_name: gaming-tracker-nginx
+    restart: unless-stopped
+    
+    ports:
+      - "80:80"
+      - "443:443"
+    
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    
+    networks:
+      - gaming-tracker-network
+    
+    depends_on:
+      - gaming-tracker
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    security_opt:
+      - no-new-privileges:true
+
 networks:
-  tracker-network:
+  gaming-tracker-network:
     driver: bridge
     ipam:
       config:
         - subnet: 172.20.0.0/16
 
-# Optional: Add monitoring with Portainer or other tools
-# volumes:
-#   portainer_data:
-
-# services:
-#   portainer:
-#     image: portainer/portainer-ce
-#     container_name: portainer
-#     restart: unless-stopped
-#     ports:
-#       - "9000:9000"
-#     volumes:
-#       - /var/run/docker.sock:/var/run/docker.sock
-#       - portainer_data:/data
-#     networks:
-#       - tracker-network
+volumes:
+  redis-data:
+    driver: local

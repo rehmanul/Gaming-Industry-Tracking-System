@@ -1,8 +1,16 @@
 const { WebClient } = require('@slack/web-api');
 const logger = require('../utils/logger');
+const security = require('../middleware/security');
 
 class SlackService {
   constructor() {
+    if (!process.env.SLACK_BOT_TOKEN) {
+      throw new Error('SLACK_BOT_TOKEN environment variable is required');
+    }
+    if (!process.env.SLACK_CHANNEL_ID) {
+      throw new Error('SLACK_CHANNEL_ID environment variable is required');
+    }
+    
     this.client = new WebClient(process.env.SLACK_BOT_TOKEN);
     this.channelId = process.env.SLACK_CHANNEL_ID;
   }
@@ -25,64 +33,64 @@ class SlackService {
   async sendHireNotification(company, hire) {
     const blocks = [
       {
-        type: "header",
+        type: 'header',
         text: {
-          type: "plain_text",
-          text: "🎯 New Gaming Industry Hire Detected"
+          type: 'plain_text',
+          text: '🎯 New Gaming Industry Hire Detected'
         }
       },
       {
-        type: "section",
+        type: 'section',
         fields: [
           {
-            type: "mrkdwn",
+            type: 'mrkdwn',
             text: `*Company:*\n${company.name}`
           },
           {
-            type: "mrkdwn",
+            type: 'mrkdwn',
             text: `*New Hire:*\n${hire.name}`
           },
           {
-            type: "mrkdwn",
+            type: 'mrkdwn',
             text: `*Position:*\n${hire.title}`
           },
           {
-            type: "mrkdwn",
+            type: 'mrkdwn',
             text: `*Location:*\n${hire.location}`
           }
         ]
       },
       {
-        type: "section",
+        type: 'section',
         text: {
-          type: "mrkdwn",
-          text: `*Skills:* ${hire.skills.join(', ') || 'N/A'}\n*Experience:* ${hire.experience} previous positions\n*Industry:* ${company.industry || 'Gaming'}\n*Company Size:* ${company.companySize || 'Unknown'}\n*Priority:* ${company.priority}`
+          type: 'mrkdwn',
+          text: `*Skills:* ${Array.isArray(hire.skills) ? hire.skills.join(', ') : hire.skills || 'Skills not listed'}\n*Experience:* ${hire.experience || 'Experience not disclosed'} years\n*Industry:* ${company.industry || 'Gaming'}\n*Company Size:* ${company.companySize || 'Unknown'}\n*Priority:* ${company.priority}`
         }
       }
     ];
 
     if (hire.linkedinUrl) {
       blocks.push({
-        type: "actions",
+        type: 'actions',
         elements: [
           {
-            type: "button",
+            type: 'button',
             text: {
-              type: "plain_text",
-              text: "View LinkedIn Profile"
+              type: 'plain_text',
+              text: 'View LinkedIn Profile'
             },
             url: hire.linkedinUrl,
-            style: "primary"
+            style: 'primary'
           }
         ]
       });
     }
 
     blocks.push({
-      type: "context",
+      type: 'context',
       elements: [
         {
-          type: "mrkdwn",
+          type: 'mrkdwn',
           text: `Priority: ${company.priority} | Source: ${hire.source} | Detected: ${new Date().toLocaleString()}`
         }
       ]
@@ -95,7 +103,7 @@ class SlackService {
         text: `🎯 New hire: ${hire.name} joined ${company.name} as ${hire.title}`
       });
 
-      logger.info(`📤 Sent hire notification for ${hire.name} at ${company.name}`);
+      logger.info(`📤 Sent hire notification for ${security.sanitizeLog(hire.name)} at ${security.sanitizeLog(company.name)}`);
     } catch (error) {
       logger.error('❌ Failed to send hire notification:', error);
     }
@@ -104,59 +112,59 @@ class SlackService {
   async sendJobNotification(company, job) {
     const blocks = [
       {
-        type: "header",
+        type: 'header',
         text: {
-          type: "plain_text",
-          text: "💼 New Gaming Industry Job Opening"
+          type: 'plain_text',
+          text: '💼 New Gaming Industry Job Opening'
         }
       },
       {
-        type: "section",
+        type: 'section',
         fields: [
           {
-            type: "mrkdwn",
+            type: 'mrkdwn',
             text: `*Company:*\n${company.name}`
           },
           {
-            type: "mrkdwn",
+            type: 'mrkdwn',
             text: `*Position:*\n${job.title}`
           },
           {
-            type: "mrkdwn",
+            type: 'mrkdwn',
             text: `*Location:*\n${job.location}`
           },
           {
-            type: "mrkdwn",
+            type: 'mrkdwn',
             text: `*Department:*\n${job.department || 'General'}`
           }
         ]
       },
       {
-        type: "section",
+        type: 'section',
         text: {
-          type: "mrkdwn",
+          type: 'mrkdwn',
           text: `*Employment Type:* ${job.employmentType || 'Not specified'}\n*Posted:* ${new Date(job.postedDate).toLocaleDateString()}\n*Source:* ${job.source}\n*Industry:* ${company.industry || 'Gaming'}\n*Priority:* ${company.priority}`
         }
       },
       {
-        type: "actions",
+        type: 'actions',
         elements: [
           {
-            type: "button",
+            type: 'button',
             text: {
-              type: "plain_text",
-              text: "View Job Posting"
+              type: 'plain_text',
+              text: 'View Job Posting'
             },
             url: job.url,
-            style: "primary"
+            style: 'primary'
           }
         ]
       },
       {
-        type: "context",
+        type: 'context',
         elements: [
           {
-            type: "mrkdwn",
+            type: 'mrkdwn',
             text: `Priority: ${company.priority} | Company Size: ${company.companySize} | Detected: ${new Date().toLocaleString()}`
           }
         ]
@@ -170,7 +178,7 @@ class SlackService {
         text: `💼 New job: ${job.title} at ${company.name} in ${job.location}`
       });
 
-      logger.info(`📤 Sent job notification for ${job.title} at ${company.name}`);
+      logger.info(`📤 Sent job notification for ${security.sanitizeLog(job.title)} at ${security.sanitizeLog(company.name)}`);
     } catch (error) {
       logger.error('❌ Failed to send job notification:', error);
     }
@@ -186,24 +194,24 @@ class SlackService {
 
     const blocks = [
       {
-        type: "header",
+        type: 'header',
         text: {
-          type: "plain_text",
+          type: 'plain_text',
           text: `${emoji[type]} ${title}`
         }
       },
       {
-        type: "section",
+        type: 'section',
         text: {
-          type: "mrkdwn",
+          type: 'mrkdwn',
           text: message
         }
       },
       {
-        type: "context",
+        type: 'context',
         elements: [
           {
-            type: "mrkdwn",
+            type: 'mrkdwn',
             text: `Gaming Company Tracker | ${new Date().toLocaleString()}`
           }
         ]
@@ -217,7 +225,7 @@ class SlackService {
         text: `System: ${title}`
       });
 
-      logger.info(`📤 Sent system notification: ${title}`);
+      logger.info(`📤 Sent system notification: ${security.sanitizeLog(title)}`);
     } catch (error) {
       logger.error('❌ Failed to send system notification:', error);
     }
@@ -228,31 +236,31 @@ class SlackService {
 
     const blocks = [
       {
-        type: "header",
+        type: 'header',
         text: {
-          type: "plain_text",
-          text: "📊 Gaming Industry Tracking Summary"
+          type: 'plain_text',
+          text: '📊 Gaming Industry Tracking Summary'
         }
       }
     ];
 
     if (hires.length > 0) {
       blocks.push({
-        type: "section",
+        type: 'section',
         text: {
-          type: "mrkdwn",
+          type: 'mrkdwn',
           text: `*🎯 New Hires Found: ${hires.length}*`
         }
       });
 
-      const hiresText = hires.slice(0, 5).map(hire => 
+      const hiresText = hires.slice(0, 5).map(hire =>
         `• ${hire.name} → ${hire.title} at ${hire.companyMatched}`
       ).join('\n');
 
       blocks.push({
-        type: "section",
+        type: 'section',
         text: {
-          type: "mrkdwn",
+          type: 'mrkdwn',
           text: hiresText + (hires.length > 5 ? `\n_...and ${hires.length - 5} more_` : '')
         }
       });
@@ -260,21 +268,21 @@ class SlackService {
 
     if (jobs.length > 0) {
       blocks.push({
-        type: "section",
+        type: 'section',
         text: {
-          type: "mrkdwn",
+          type: 'mrkdwn',
           text: `*💼 New Job Openings: ${jobs.length}*`
         }
       });
 
-      const jobsText = jobs.slice(0, 5).map(job => 
+      const jobsText = jobs.slice(0, 5).map(job =>
         `• ${job.title} at ${job.company || 'Unknown'} (${job.location})`
       ).join('\n');
 
       blocks.push({
-        type: "section",
+        type: 'section',
         text: {
-          type: "mrkdwn",
+          type: 'mrkdwn',
           text: jobsText + (jobs.length > 5 ? `\n_...and ${jobs.length - 5} more_` : '')
         }
       });
@@ -290,6 +298,16 @@ class SlackService {
       logger.info(`📤 Sent bulk summary: ${hires.length} hires, ${jobs.length} jobs`);
     } catch (error) {
       logger.error('❌ Failed to send bulk summary:', error);
+    }
+  }
+
+  async testConnection() {
+    try {
+      await this.client.auth.test();
+      return true;
+    } catch (error) {
+      logger.error('❌ Slack test connection failed:', error);
+      return false;
     }
   }
 }

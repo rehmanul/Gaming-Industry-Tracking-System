@@ -1,5 +1,7 @@
 const axios = require('axios');
 const logger = require('../utils/logger');
+const security = require('../middleware/security');
+const errorHandler = require('../utils/errorHandler');
 
 class HiringTracker {
   constructor() {
@@ -34,20 +36,68 @@ class HiringTracker {
       const since = this.lastChecked.get(company.id) || Date.now() - (48 * 60 * 60 * 1000);
       const newHires = await this.searchNewHires(company, since);
 
-      // Filter out duplicates using existing data from sheets
-      const existingHires = await this.sheetsService?.getExistingHires(company, 30) || [];
+      const existingHires = await this.sheetsService?.getExistingHires(company, 30) ?? [];
       const filteredHires = this.filterDuplicateHires(newHires, existingHires);
 
       this.lastChecked.set(company.id, Date.now());
 
       if (filteredHires.length > 0) {
-        logger.info(`🎯 Found ${filteredHires.length} new hires for ${company.name}`);
+        logger.info(`🎯 Found ${filteredHires.length} new hires for ${security.sanitizeLog(company.name)}`);
       }
 
       return filteredHires;
 
     } catch (error) {
-      logger.error(`❌ Error tracking hires for ${company.name}:`, error);
+      logger.error(`❌ Error tracking hires for ${security.sanitizeLog(company.name)}:`, error);
+      return [];
+    }
+  }
+
+  async searchHistoricalHires(company, startDate) {
+    try {
+      logger.info(`📅 Searching historical hires for ${security.sanitizeLog(company.name)} from ${startDate}`);
+      
+      const apiKey = this.getCurrentApiKey();
+      const searchParams = {
+        query: {
+          bool: {
+            must: [
+              {
+                bool: {
+                  should: [
+                    { term: { 'job_company_name': company.name } },
+                    { match: { 'job_company_name': company.name } }
+                  ]
+                }
+              },
+              { range: { 'job_start_date': { gte: startDate } } }
+            ]
+          }
+        },
+        size: 100,
+        dataset: 'person'
+      };
+
+      const response = await axios.post('https://api.peopledatalabs.com/v5/person/search',
+        searchParams,
+        {
+          headers: {
+            'X-Api-Key': apiKey,
+            'Content-Type': 'application/json'
+          },
+          timeout: 30000
+        }
+      );
+
+      if (response.data.data) {
+        const processedHires = this.processHireData(response.data.data, company);
+        logger.info(`📅 Found ${processedHires.length} historical hires for ${security.sanitizeLog(company.name)}`);
+        return processedHires;
+      }
+
+      return [];
+    } catch (error) {
+      logger.error(`❌ Historical hire search failed for ${security.sanitizeLog(company.name)}:`, error);
       return [];
     }
   }
@@ -63,15 +113,15 @@ class HiringTracker {
         query: {
           bool: {
             must: [
-              { 
+              {
                 bool: {
                   should: [
-                    { term: { "job_company_name": company.name } },
-                    { match: { "job_company_name": company.name } }
+                    { term: { 'job_company_name': company.name } },
+                    { match: { 'job_company_name': company.name } }
                   ]
                 }
               },
-              { range: { "job_start_date": { gte: sinceDate } } }
+              { range: { 'job_start_date': { gte: sinceDate } } }
             ]
           }
         }
@@ -85,27 +135,27 @@ class HiringTracker {
         query: {
           bool: {
             must: [
-              { wildcard: { "job_company_website": `*${domain}*` } },
-              { range: { "job_start_date": { gte: sinceDate } } }
+              { wildcard: { 'job_company_website': `*${domain}*` } },
+              { range: { 'job_start_date': { gte: sinceDate } } }
             ]
           }
         }
       });
     }
 
-    let allResults = [];
+    const allResults = [];
 
     for (const strategy of searchStrategies) {
       try {
         const searchParams = {
           ...strategy,
           size: 25,
-          dataset: "person"
+          dataset: 'person'
         };
 
-        logger.debug(`🔍 Searching for hires at ${company.name} since ${sinceDate}`);
+        logger.debug(`🔍 Searching for hires at ${security.sanitizeLog(company.name)} since ${sinceDate}`);
 
-        const response = await axios.post('https://api.peopledatalabs.com/v5/person/search', 
+        const response = await axios.post('https://api.peopledatalabs.com/v5/person/search',
           searchParams,
           {
             headers: {
@@ -118,19 +168,20 @@ class HiringTracker {
 
         if (response.data.data) {
           allResults.push(...response.data.data);
-          logger.debug(`📊 Found ${response.data.data.length} results for ${company.name}`);
+          logger.debug(`📊 Found ${response.data.data.length} results for ${security.sanitizeLog(company.name)}`);
         }
 
         // Rate limiting delay
-        await this.delay(1500);
+        await this.delay(1000);
 
       } catch (error) {
         if (error.response?.status === 429) {
-          logger.warn(`⏱️ Rate limit hit for ${company.name}, switching API key`);
-          await this.delay(3000);
+          logger.warn(`⏱️ Rate limit hit for ${security.sanitizeLog(company.name)}, switching API key`);
+          this.currentKeyIndex = (this.currentKeyIndex + 1) % this.apiKeys.length;
+          await errorHandler.delay(3000);
           continue;
         }
-        logger.warn(`⚠️ Search strategy failed for ${company.name}:`, error.message);
+        logger.debug(`Search strategy failed for ${security.sanitizeLog(company.name)}: ${security.sanitizeLog(error.message || 'Unknown error')}`);
       }
     }
 
@@ -142,7 +193,7 @@ class HiringTracker {
   removeDuplicates(results) {
     const seen = new Set();
     return results.filter(person => {
-      const key = `${person.full_name}-${person.job_title}-${person.job_company_name}`;
+      const key = `${security.sanitizeInput(person.full_name || '')}-${security.sanitizeInput(person.job_title || '')}-${security.sanitizeInput(person.job_company_name || '')}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -192,6 +243,22 @@ class HiringTracker {
 
   delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async testConnection() {
+    try {
+      // Check if API keys are configured
+      if (this.apiKeys.length === 0) {
+        logger.error('❌ People Data Labs API keys are not configured.');
+        return false;
+      }
+      // Optionally, make a very lightweight API call to verify connectivity
+      // For now, just returning true if keys exist to resolve the "not a function" error
+      return true;
+    } catch (error) {
+      logger.error('❌ People Data Labs test connection failed:', error);
+      return false;
+    }
   }
 }
 

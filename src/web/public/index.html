@@ -1,494 +1,609 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gaming Industry Tracker - Dashboard</title>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<style>
-:root {
-  --primary: #6366f1;
-  --primary-dark: #4f46e5;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --dark: #1f2937;
-  --light: #f9fafb;
-  --border: #e5e7eb;
-  --text: #374151;
-  --text-light: #6b7280;
-}
-
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-body {
-  font-family: 'Inter', sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  min-height: 100vh;
-  color: var(--text);
-}
-
-.container {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-.header {
-  background: rgba(255,255,255,0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-  padding: 24px;
-  margin-bottom: 24px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-}
-
-.header h1 {
-  font-size: 2.5rem;
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--primary), #8b5cf6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin-bottom: 8px;
-}
-
-.header p {
-  color: var(--text-light);
-  font-size: 1.1rem;
-}
-
-.dashboard {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  margin-bottom: 24px;
-}
-
-.card {
-  background: rgba(255,255,255,0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-  border: 1px solid rgba(255,255,255,0.2);
-}
-
-.status-card {
-  text-align: center;
-}
-
-.status-indicator {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  margin: 0 auto 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2rem;
-  color: white;
-  transition: all 0.3s ease;
-}
-
-.status-running { background: linear-gradient(135deg, var(--success), #059669); }
-.status-stopped { background: linear-gradient(135deg, var(--danger), #dc2626); }
-.status-loading { background: linear-gradient(135deg, var(--warning), #d97706); animation: pulse 2s infinite; }
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-.controls {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  margin-top: 20px;
-}
-
-.btn {
-  padding: 12px 24px;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-  color: white;
-}
-
-.btn-danger {
-  background: linear-gradient(135deg, var(--danger), #dc2626);
-  color: white;
-}
-
-.btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-}
-
-.stat-item {
-  text-align: center;
-  padding: 16px;
-  background: rgba(255,255,255,0.5);
-  border-radius: 12px;
-}
-
-.stat-value {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--primary);
-}
-
-.stat-label {
-  color: var(--text-light);
-  font-size: 0.9rem;
-  margin-top: 4px;
-}
-
-.full-width {
-  grid-column: 1 / -1;
-}
-
-.logs-container {
-  max-height: 300px;
-  overflow-y: auto;
-  background: var(--dark);
-  border-radius: 8px;
-  padding: 16px;
-  font-family: 'Courier New', monospace;
-  font-size: 13px;
-}
-
-.log-entry {
-  margin-bottom: 8px;
-  padding: 4px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-
-.log-timestamp {
-  color: #64748b;
-  margin-right: 8px;
-}
-
-.log-info { color: #3b82f6; }
-.log-success { color: #10b981; }
-.log-warning { color: #f59e0b; }
-.log-error { color: #ef4444; }
-
-.companies-list {
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.company-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.company-name {
-  font-weight: 600;
-}
-
-.company-status {
-  display: flex;
-  gap: 8px;
-}
-
-.badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.badge-success { background: #dcfce7; color: #166534; }
-.badge-warning { background: #fef3c7; color: #92400e; }
-.badge-info { background: #dbeafe; color: #1e40af; }
-
-@media (max-width: 768px) {
-  .dashboard {
-    grid-template-columns: 1fr;
-  }
-  
-  .header h1 {
-    font-size: 2rem;
-  }
-  
-  .controls {
-    flex-direction: column;
-  }
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gaming Industry Tracker - Real-Time Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="enhanced.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f1419; color: #fff; min-height: 100vh; }
+        
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+        .header h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: clamp(0.9rem, 2vw, 1.1rem); }
+        
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; padding: 20px; }
+        .card { background: #1a1f2e; border-radius: 12px; padding: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); border: 1px solid #2d3748; }
+        .card h3 { color: #4fd1c7; margin-bottom: 15px; font-size: 1.2rem; }
+        
+        @media (max-width: 768px) {
+            .dashboard { grid-template-columns: 1fr; padding: 10px; gap: 15px; }
+            .header { padding: 15px; }
+            .card { padding: 15px; }
+        }
+        
+        .stat-card { text-align: center; }
+        .stat-number { font-size: 3rem; font-weight: bold; margin: 10px 0; }
+        .stat-label { color: #a0aec0; font-size: 0.9rem; }
+        
+        .companies-grid { grid-column: 1 / -1; }
+        .companies-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; max-height: 400px; overflow-y: auto; }
+        .company-item { background: #2d3748; padding: 15px; border-radius: 8px; border-left: 4px solid #4fd1c7; }
+        .company-name { font-weight: bold; color: #fff; margin-bottom: 5px; }
+        .company-details { font-size: 0.9rem; color: #a0aec0; }
+        .priority-high { border-left-color: #f56565; }
+        .priority-medium { border-left-color: #ed8936; }
+        .priority-low { border-left-color: #48bb78; }
+        
+        @media (max-width: 768px) {
+            .companies-list { grid-template-columns: 1fr; }
+        }
+        
+        .activity-list { max-height: 300px; overflow-y: auto; }
+        .activity-item { background: #2d3748; padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 4px solid #4fd1c7; }
+        .activity-hire { border-left-color: #9f7aea; }
+        .activity-job { border-left-color: #4299e1; }
+        
+        .controls { grid-column: 1 / -1; display: flex; gap: 15px; flex-wrap: wrap; }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: all 0.3s; position: relative; overflow: hidden; min-width: 140px; }
+        .btn-primary { background: #4299e1; color: white; }
+        .btn-success { background: #48bb78; color: white; }
+        .btn-danger { background: #f56565; color: white; }
+        .btn-warning { background: #ed8936; color: white; }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .btn:active { transform: translateY(0); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn.loading { color: transparent; }
+        .btn.loading::after { content: ''; position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; margin: -10px 0 0 -10px; border: 2px solid transparent; border-top: 2px solid currentColor; border-radius: 50%; animation: spin 1s linear infinite; color: white; }
+        
+        @media (max-width: 768px) {
+            .controls { justify-content: center; }
+            .btn { flex: 1; min-width: 120px; }
+        }
+        
+        .status-indicator { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
+        .status-running { background: #48bb78; }
+        .status-stopped { background: #f56565; }
+        
+        .tracking-indicator { 
+            display: none; 
+            background: #4299e1; 
+            color: white; 
+            padding: 5px 10px; 
+            border-radius: 15px; 
+            font-size: 0.8rem; 
+            margin-top: 8px;
+            animation: pulse 2s infinite;
+        }
+        .tracking-indicator.active { display: block; }
+        .tracking-indicator i { margin-right: 5px; }
+        
+        .logs { grid-column: 1 / -1; }
+        .logs-container { background: #000; padding: 15px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 0.9rem; max-height: 300px; overflow-y: auto; }
+        
+        .filters { display: flex; gap: 10px; margin-bottom: 20px; }
+        .filter-select { background: #2d3748; color: #fff; border: 1px solid #4a5568; padding: 8px 12px; border-radius: 6px; }
+        
+        .tabs { display: flex; gap: 5px; margin-bottom: 20px; }
+        .tab-btn { background: #2d3748; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+        .tab-btn.active { background: #4299e1; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        .data-controls { margin-bottom: 15px; }
+        .data-list { max-height: 400px; overflow-y: auto; }
+        .data-item { background: #2d3748; padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 4px solid #4fd1c7; }
+        .data-item h4 { color: #fff; margin-bottom: 8px; }
+        .data-item .meta { color: #a0aec0; font-size: 0.9rem; margin-bottom: 5px; }
+        .data-item .details { color: #e2e8f0; }
+        
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .hire-item { border-left-color: #9f7aea; }
+        .job-item { border-left-color: #4299e1; }
+        
+        .tracking-status { background: #2d3748; padding: 10px; border-radius: 6px; margin: 10px 0; display: none; }
+        .tracking-status.active { display: block; }
+        .progress-bar { width: 100%; height: 4px; background: #4a5568; border-radius: 2px; overflow: hidden; margin-top: 8px; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #4299e1, #9f7aea); width: 0%; transition: width 0.3s; animation: progress 2s ease-in-out infinite; }
+        @keyframes progress { 0%, 100% { width: 0%; } 50% { width: 100%; } }
+        
+        .notification { position: fixed; top: 20px; right: 20px; background: #48bb78; color: white; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); transform: translateX(100%); transition: transform 0.3s; z-index: 1000; }
+        .notification.show { transform: translateX(0); }
+        .notification.error { background: #f56565; }
+        .notification.warning { background: #ed8936; }
+    </style>
 </head>
 <body>
-<div class="container">
-  <div class="header">
-    <h1><i class="fas fa-gamepad"></i> Gaming Industry Tracker</h1>
-    <p>Advanced monitoring system for gaming companies, hiring trends, and job postings</p>
-  </div>
-
-  <div class="dashboard">
-    <div class="card status-card">
-      <h3>System Status</h3>
-      <div id="statusIndicator" class="status-indicator status-loading">
-        <i class="fas fa-circle-notch fa-spin"></i>
-      </div>
-      <div id="statusText">Checking status...</div>
-      <div id="uptime" class="stat-label"></div>
-      
-      <div class="controls">
-        <button id="startBtn" class="btn btn-primary" onclick="startTracker()">
-          <i class="fas fa-play"></i> Start Tracking
-        </button>
-        <button id="stopBtn" class="btn btn-danger" onclick="stopTracker()">
-          <i class="fas fa-stop"></i> Stop Tracking
-        </button>
-      </div>
+    <div class="header">
+        <h1><i class="fas fa-gamepad"></i> Gaming Industry Tracker</h1>
+        <p>Real-time monitoring of gaming companies for new hires and job postings</p>
     </div>
 
-    <div class="card">
-      <h3><i class="fas fa-chart-line"></i> Analytics</h3>
-      <div class="stats-grid">
-        <div class="stat-item">
-          <div id="totalHires" class="stat-value">0</div>
-          <div class="stat-label">Total Hires</div>
+    <div class="dashboard">
+        <!-- System Status -->
+        <div class="card stat-card">
+            <h3><i class="fas fa-server"></i> System Status</h3>
+            <div class="stat-number" id="systemStatus">
+                <span class="status-indicator status-running"></span>Running
+            </div>
+            <div class="stat-label" id="uptime">Uptime: 0h 0m</div>
+            <div class="tracking-indicator" id="trackingIndicator">
+                <i class="fas fa-spinner fa-spin"></i> Tracking Active
+            </div>
         </div>
-        <div class="stat-item">
-          <div id="totalJobs" class="stat-value">0</div>
-          <div class="stat-label">Job Postings</div>
+
+        <!-- Companies Monitored -->
+        <div class="card stat-card">
+            <h3><i class="fas fa-building"></i> Companies</h3>
+            <div class="stat-number" id="companiesCount">0</div>
+            <div class="stat-label">Gaming Companies Monitored</div>
         </div>
-        <div class="stat-item">
-          <div id="companiesCount" class="stat-value">0</div>
-          <div class="stat-label">Companies</div>
+
+        <!-- New Hires -->
+        <div class="card stat-card">
+            <h3><i class="fas fa-user-plus"></i> New Hires</h3>
+            <div class="stat-number" id="hiresCount" style="color: #9f7aea;">0</div>
+            <div class="stat-label">Detected Today</div>
         </div>
-        <div class="stat-item">
-          <div id="errorCount" class="stat-value">0</div>
-          <div class="stat-label">Errors</div>
+
+        <!-- New Jobs -->
+        <div class="card stat-card">
+            <h3><i class="fas fa-briefcase"></i> New Jobs</h3>
+            <div class="stat-number" id="jobsCount" style="color: #4299e1;">0</div>
+            <div class="stat-label">Posted Today</div>
         </div>
-      </div>
+
+        <!-- Regular Controls -->
+        <div class="controls">
+            <button class="btn btn-primary" onclick="forceTracking()">
+                <i class="fas fa-play"></i> Start Tracking
+            </button>
+            <button class="btn btn-success" onclick="reloadCompanies()">
+                <i class="fas fa-sync"></i> Reload Companies
+            </button>
+            <button class="btn btn-warning" onclick="testNotifications()">
+                <i class="fas fa-bell"></i> Test Notifications
+            </button>
+            <button class="btn btn-danger" onclick="exportData()">
+                <i class="fas fa-download"></i> Export Data
+            </button>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="card" style="grid-column: 1 / -1; border: 2px solid #f56565; background: #2d1b1b;">
+            <h3 style="color: #f56565;"><i class="fas fa-exclamation-triangle"></i> Danger Zone - Use Only Once</h3>
+            <p style="color: #fbb6ce; margin-bottom: 15px;">⚠️ This will delete ALL existing data and start fresh tracking from August 1st, 2025</p>
+            <button class="btn btn-danger" onclick="resetAndTrack()" style="background: #c53030;">
+                <i class="fas fa-trash-restore"></i> Complete Fresh Start (Deletes All Data)
+            </button>
+        </div>
+
+        <!-- Companies List -->
+        <div class="card companies-grid">
+            <h3><i class="fas fa-list"></i> Gaming Companies</h3>
+            <div class="filters">
+                <select class="filter-select" id="priorityFilter" onchange="filterCompanies()">
+                    <option value="">All Priorities</option>
+                    <option value="High">High Priority</option>
+                    <option value="Medium">Medium Priority</option>
+                    <option value="Low">Low Priority</option>
+                </select>
+                <select class="filter-select" id="trackingFilter" onchange="filterCompanies()">
+                    <option value="">All Companies</option>
+                    <option value="hiring">Tracking Hires</option>
+                    <option value="jobs">Tracking Jobs</option>
+                    <option value="both">Tracking Both</option>
+                </select>
+            </div>
+            <div class="companies-list" id="companiesList"></div>
+        </div>
+
+        <!-- Data Tabs -->
+        <div class="card" style="grid-column: 1 / -1;">
+            <div class="tracking-status" id="trackingStatus">
+                <div>🔄 <span id="trackingMessage">Tracking in progress...</span></div>
+                <div class="progress-bar"><div class="progress-fill"></div></div>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab-btn active" onclick="showTab('activity')">Recent Activity</button>
+                <button class="tab-btn" onclick="showTab('hires')">New Hires</button>
+                <button class="tab-btn" onclick="showTab('jobs')">Job Postings</button>
+            </div>
+            
+            <div id="activityTab" class="tab-content active">
+                <div class="activity-list" id="activityList">
+                    <div class="activity-item">
+                        <strong>System Started</strong><br>
+                        <small>Gaming Industry Tracker initialized successfully</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="hiresTab" class="tab-content">
+                <div class="data-controls">
+                    <button class="btn btn-primary" onclick="loadHires()">Refresh Hires</button>
+                </div>
+                <div class="data-list" id="hiresList">Loading hires data...</div>
+            </div>
+            
+            <div id="jobsTab" class="tab-content">
+                <div class="data-controls">
+                    <button class="btn btn-primary" onclick="loadJobs()">Refresh Jobs</button>
+                </div>
+                <div class="data-list" id="jobsList">Loading jobs data...</div>
+            </div>
+        </div>
+
+        <!-- Live Logs -->
+        <div class="card logs">
+            <h3><i class="fas fa-terminal"></i> Live System Logs</h3>
+            <div class="logs-container" id="logsContainer">
+                <div>🚀 Gaming Industry Tracker started...</div>
+                <div>📊 Loading companies from Google Sheets...</div>
+                <div>🎮 Ready to track gaming industry data...</div>
+            </div>
+        </div>
     </div>
 
-    <div class="card full-width">
-      <h3><i class="fas fa-building"></i> Monitored Companies</h3>
-      <div id="companiesList" class="companies-list">
-        <div style="text-align: center; padding: 40px; color: var(--text-light);">
-          <i class="fas fa-spinner fa-spin"></i> Loading companies...
-        </div>
-      </div>
-    </div>
+    <script>
+        // API Configuration
+        const API_KEY = 'gaming-tracker-secure-key-2024';
+        const getHeaders = () => ({
+            'Content-Type': 'application/json',
+            'x-api-key': API_KEY
+        });
+        
+        let ws;
+        let companies = [];
+        let stats = { totalHires: 0, totalJobs: 0, companiesLoaded: 0, uptime: 0 };
 
-    <div class="card full-width">
-      <h3><i class="fas fa-terminal"></i> System Logs</h3>
-      <div id="logsContainer" class="logs-container">
-        <div class="log-entry log-info">
-          <span class="log-timestamp">[Loading...]</span>
-          <span>Dashboard initialized - connecting to tracker...</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+        function connectWebSocket() {
+            ws = new WebSocket('ws://localhost:3000');
+            
+            ws.onopen = () => {
+                console.log('Connected to tracker');
+                addLog('🔗 Connected to Gaming Industry Tracker');
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+            
+            ws.onclose = () => {
+                console.log('Disconnected from tracker');
+                addLog('❌ Disconnected from tracker. Reconnecting...');
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
 
-<script>
-class TrackerDashboard {
-  constructor() {
-    this.isRunning = false;
-    this.stats = { totalHires: 0, totalJobs: 0, companiesLoaded: 0, errors: 0, uptime: 0 };
-    this.companies = [];
-    this.logs = [];
-    this.init();
-  }
+        function handleWebSocketMessage(data) {
+            switch(data.type) {
+                case 'stats':
+                    updateStats(data.data);
+                    break;
+                case 'companies':
+                    companies = data.data;
+                    updateCompaniesDisplay();
+                    break;
+                case 'newHire':
+                    addActivity(`🎯 New hire: ${data.data.name} joined ${data.data.company} as ${data.data.title}`, 'hire');
+                    stats.totalHires++;
+                    updateStats(stats);
+                    break;
+                case 'newJob':
+                    addActivity(`💼 New job: ${data.data.title} at ${data.data.company} (${data.data.location})`, 'job');
+                    stats.totalJobs++;
+                    updateStats(stats);
+                    break;
+                case 'log':
+                    addLog(data.data.message);
+                    break;
+                case 'trackingStart':
+                    addActivity('🔄 Tracking cycle started', 'system');
+                    break;
+                case 'trackingComplete':
+                    addActivity(`✅ Tracking complete: ${data.data.hires} hires, ${data.data.jobs} jobs found`, 'system');
+                    break;
+            }
+        }
 
-  init() {
-    this.updateStatus();
-    this.loadStats();
-    this.loadCompanies();
-    
-    setInterval(() => {
-      this.updateStatus();
-      this.loadStats();
-    }, 5000);
-    
-    setInterval(() => this.loadCompanies(), 30000);
-    
-    this.addLog('info', 'Dashboard connected successfully');
-  }
+        function updateStats(newStats) {
+            stats = { ...stats, ...newStats };
+            document.getElementById('companiesCount').textContent = stats.companiesLoaded || 0;
+            document.getElementById('hiresCount').textContent = stats.totalHires || 0;
+            document.getElementById('jobsCount').textContent = stats.totalJobs || 0;
+            
+            const hours = Math.floor(stats.uptime / 3600);
+            const minutes = Math.floor((stats.uptime % 3600) / 60);
+            document.getElementById('uptime').textContent = `Uptime: ${hours}h ${minutes}m`;
+        }
 
-  async updateStatus() {
-    try {
-      const response = await fetch('/status');
-      const data = await response.json();
-      
-      this.isRunning = data.status === 'running';
-      this.updateStatusUI();
-    } catch (error) {
-      this.addLog('error', 'Failed to fetch status: ' + error.message);
-    }
-  }
+        function updateCompaniesDisplay() {
+            const container = document.getElementById('companiesList');
+            container.innerHTML = companies.map(company => `
+                <div class="company-item priority-${company.priority.toLowerCase()}">
+                    <div class="company-name">${company.name}</div>
+                    <div class="company-details">
+                        Priority: ${company.priority} | 
+                        Hiring: ${company.trackHiring ? '✅' : '❌'} | 
+                        Jobs: ${company.trackJobs ? '✅' : '❌'}<br>
+                        Industry: ${company.industry} | Size: ${company.companySize}
+                    </div>
+                </div>
+            `).join('');
+        }
 
-  updateStatusUI() {
-    const indicator = document.getElementById('statusIndicator');
-    const text = document.getElementById('statusText');
-    const startBtn = document.getElementById('startBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    
-    if (this.isRunning) {
-      indicator.className = 'status-indicator status-running';
-      indicator.innerHTML = '<i class="fas fa-play"></i>';
-      text.textContent = 'System Running';
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
-    } else {
-      indicator.className = 'status-indicator status-stopped';
-      indicator.innerHTML = '<i class="fas fa-stop"></i>';
-      text.textContent = 'System Stopped';
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-    }
-  }
+        function addActivity(message, type = 'system') {
+            const container = document.getElementById('activityList');
+            const item = document.createElement('div');
+            item.className = `activity-item activity-${type}`;
+            item.innerHTML = `
+                <strong>${message}</strong><br>
+                <small>${new Date().toLocaleString()}</small>
+            `;
+            container.insertBefore(item, container.firstChild);
+            
+            // Keep only last 20 items
+            while(container.children.length > 20) {
+                container.removeChild(container.lastChild);
+            }
+        }
 
-  async loadStats() {
-    try {
-      const response = await fetch('/stats');
-      const data = await response.json();
-      
-      this.stats = data;
-      this.updateStatsUI();
-    } catch (error) {
-      // Stats endpoint will be added
-    }
-  }
+        function addLog(message) {
+            const container = document.getElementById('logsContainer');
+            const logEntry = document.createElement('div');
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            container.appendChild(logEntry);
+            container.scrollTop = container.scrollHeight;
+            
+            // Keep only last 50 logs
+            while(container.children.length > 50) {
+                container.removeChild(container.firstChild);
+            }
+        }
 
-  updateStatsUI() {
-    document.getElementById('totalHires').textContent = this.stats.totalHires || 0;
-    document.getElementById('totalJobs').textContent = this.stats.totalJobs || 0;
-    document.getElementById('companiesCount').textContent = this.stats.companiesLoaded || 0;
-    document.getElementById('errorCount').textContent = this.stats.errors || 0;
-    
-    if (this.stats.uptime) {
-      const hours = Math.floor(this.stats.uptime / 3600);
-      const minutes = Math.floor((this.stats.uptime % 3600) / 60);
-      document.getElementById('uptime').textContent = `Uptime: ${hours}h ${minutes}m`;
-    }
-  }
+        function forceTracking() {
+            fetch('/api/force-tracking', { 
+                method: 'POST',
+                headers: getHeaders()
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addActivity('🚀 Manual tracking cycle initiated', 'system');
+                        addLog('🔄 Force tracking requested');
+                    } else {
+                        addActivity('❌ Tracking failed: ' + (data.error || 'Unknown error'), 'system');
+                    }
+                })
+                .catch(error => {
+                    addActivity('❌ Tracking failed: ' + error.message, 'system');
+                });
+        }
 
-  async loadCompanies() {
-    try {
-      const response = await fetch('/companies');
-      const data = await response.json();
-      
-      this.companies = data.companies || [];
-      this.updateCompaniesUI();
-    } catch (error) {
-      this.updateCompaniesUI();
-    }
-  }
+        function reloadCompanies() {
+            fetch('/api/reload-companies', { 
+                method: 'POST',
+                headers: getHeaders()
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addActivity('🔄 Companies reloaded from Google Sheets', 'system');
+                        addLog('📊 Companies data refreshed');
+                    } else {
+                        addActivity('❌ Reload failed: ' + (data.error || 'Unknown error'), 'system');
+                    }
+                })
+                .catch(error => {
+                    addActivity('❌ Reload failed: ' + error.message, 'system');
+                });
+        }
 
-  updateCompaniesUI() {
-    const container = document.getElementById('companiesList');
-    
-    if (this.companies.length === 0) {
-      container.innerHTML = `
-        <div style="text-align: center; padding: 40px; color: var(--text-light);">
-          <i class="fas fa-building"></i>
-          <p>No companies loaded yet</p>
-          <small>Companies will appear here once the tracker starts</small>
-        </div>
-      `;
-      return;
-    }
-    
-    container.innerHTML = this.companies.map(company => `
-      <div class="company-item">
-        <div>
-          <div class="company-name">${company.name}</div>
-          <small style="color: var(--text-light);">${company.domain || 'N/A'}</small>
-        </div>
-        <div class="company-status">
-          ${company.trackHiring ? '<span class="badge badge-success">Hiring</span>' : ''}
-          ${company.trackJobs ? '<span class="badge badge-info">Jobs</span>' : ''}
-          ${company.priority ? `<span class="badge badge-warning">${company.priority}</span>` : ''}
-        </div>
-      </div>
-    `).join('');
-  }
+        function testNotifications() {
+            fetch('/api/test-notifications', { 
+                method: 'POST',
+                headers: getHeaders()
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addActivity('🔔 Test notifications sent', 'system');
+                        addLog('📧 Test notifications dispatched');
+                    } else {
+                        addActivity('❌ Test failed: ' + (data.error || 'Unknown error'), 'system');
+                    }
+                })
+                .catch(error => {
+                    addActivity('❌ Test failed: ' + error.message, 'system');
+                });
+        }
 
-  addLog(type, message) {
-    const timestamp = new Date().toLocaleTimeString();
-    const logEntry = { type, message, timestamp };
-    
-    this.logs.unshift(logEntry);
-    if (this.logs.length > 50) this.logs.pop();
-    
-    this.updateLogsUI();
-  }
+        function exportData() {
+            window.open('/api/export-data?apiKey=' + API_KEY, '_blank');
+            addActivity('📥 Data export initiated', 'system');
+        }
 
-  updateLogsUI() {
-    const container = document.getElementById('logsContainer');
-    
-    container.innerHTML = this.logs.map(log => `
-      <div class="log-entry log-${log.type}">
-        <span class="log-timestamp">[${log.timestamp}]</span>
-        <span>${log.message}</span>
-      </div>
-    `).join('');
-  }
+        function setupSampleData() {
+            fetch('/api/setup-sample-data', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addActivity('🎆 Sample data added to Google Sheets', 'system');
+                        if (document.getElementById('hiresTab').classList.contains('active')) {
+                            loadHires();
+                        }
+                        if (document.getElementById('jobsTab').classList.contains('active')) {
+                            loadJobs();
+                        }
+                    }
+                });
+        }
 
-  async startTracker() {
-    try {
-      this.addLog('info', 'Starting tracker system...');
-      const response = await fetch('/start', { method: 'POST' });
-      const data = await response.json();
-      
-      this.addLog('success', 'Tracker started successfully');
-      this.updateStatus();
-    } catch (error) {
-      this.addLog('error', 'Failed to start tracker: ' + error.message);
-    }
-  }
+        function resetAndTrack() {
+            if (!confirm('This will backup existing data and start fresh tracking. Continue?')) return;
+            
+            addActivity('📦 Starting data backup and reset...', 'system');
+            
+            fetch('/api/reset-and-track', { 
+                method: 'POST',
+                headers: getHeaders()
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addActivity('✨ Fresh tracking completed successfully', 'system');
+                        if (document.getElementById('hiresTab').classList.contains('active')) {
+                            loadHires();
+                        }
+                        if (document.getElementById('jobsTab').classList.contains('active')) {
+                            loadJobs();
+                        }
+                    } else {
+                        addActivity('❌ Reset failed: ' + (data.error || 'Unknown error'), 'system');
+                    }
+                })
+                .catch(error => {
+                    addActivity('❌ Reset failed: ' + error.message, 'system');
+                });
+        }
 
-  async stopTracker() {
-    try {
-      this.addLog('info', 'Stopping tracker system...');
-      const response = await fetch('/stop', { method: 'POST' });
-      const data = await response.json();
-      
-      this.addLog('warning', 'Tracker stopped');
-      this.updateStatus();
-    } catch (error) {
-      this.addLog('error', 'Failed to stop tracker: ' + error.message);
-    }
-  }
-}
+        function filterCompanies() {
+            const priorityFilter = document.getElementById('priorityFilter').value;
+            const trackingFilter = document.getElementById('trackingFilter').value;
+            
+            // Filter logic would be implemented here
+            updateCompaniesDisplay();
+        }
 
-const dashboard = new TrackerDashboard();
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            
+            // Show selected tab
+            document.getElementById(tabName + 'Tab').classList.add('active');
+            event.target.classList.add('active');
+            
+            // Load data if needed
+            if (tabName === 'hires') loadHires();
+            if (tabName === 'jobs') loadJobs();
+        }
 
-function startTracker() {
-  dashboard.startTracker();
-}
+        function loadHires() {
+            const container = document.getElementById('hiresList');
+            container.innerHTML = 'Loading hires...';
+            
+            fetch('/api/hires', {
+                headers: getHeaders()
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayHires(data.data);
+                    } else {
+                        container.innerHTML = 'Error loading hires: ' + data.error;
+                    }
+                })
+                .catch(error => {
+                    container.innerHTML = 'Error loading hires: ' + error.message;
+                });
+        }
 
-function stopTracker() {
-  dashboard.stopTracker();
-}
-</script>
+        function loadJobs() {
+            const container = document.getElementById('jobsList');
+            container.innerHTML = 'Loading jobs...';
+            
+            fetch('/api/jobs', {
+                headers: getHeaders()
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayJobs(data.data);
+                    } else {
+                        container.innerHTML = 'Error loading jobs: ' + data.error;
+                    }
+                })
+                .catch(error => {
+                    container.innerHTML = 'Error loading jobs: ' + error.message;
+                });
+        }
+
+        function displayHires(hires) {
+            const container = document.getElementById('hiresList');
+            if (hires.length === 0) {
+                container.innerHTML = '<div class="data-item">No hires tracked yet - start tracking to see results</div>';
+                return;
+            }
+            
+            container.innerHTML = hires.map(hire => {
+                const name = hire.name || 'Name not disclosed in profile';
+                const title = hire.title || 'Position title not specified';
+                const company = hire.company || 'Company name missing';
+                const location = hire.location || 'Location not specified in profile';
+                const timestamp = hire.timestamp ? new Date(hire.timestamp).toLocaleDateString() : 'Date not available';
+                const experience = hire.experience || 'Experience level not disclosed';
+                const skills = hire.skills || 'Skills not listed in profile';
+                const linkedinUrl = hire.linkedinUrl;
+                
+                return `
+                    <div class="data-item hire-item">
+                        <h4>${name} - ${title}</h4>
+                        <div class="meta">${company} | ${location} | ${timestamp}</div>
+                        <div class="details">
+                            Experience: ${experience} | Skills: ${skills}<br>
+                            ${linkedinUrl && linkedinUrl !== '' && !linkedinUrl.includes('not available') ? `<a href="${linkedinUrl}" target="_blank" style="color: #4299e1;">LinkedIn Profile</a>` : 'LinkedIn profile not available'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function displayJobs(jobs) {
+            const container = document.getElementById('jobsList');
+            if (jobs.length === 0) {
+                container.innerHTML = '<div class="data-item">No jobs tracked yet - start tracking to see results</div>';
+                return;
+            }
+            
+            container.innerHTML = jobs.map(job => {
+                const title = job.title || 'Job title not specified in posting';
+                const company = job.company || 'Company name missing';
+                const location = job.location || 'Location not defined in post';
+                const timestamp = job.timestamp ? new Date(job.timestamp).toLocaleDateString() : 'Date not available';
+                const department = job.department || 'Department not specified';
+                const employmentType = job.employmentType || 'Employment type not mentioned';
+                const url = job.url;
+                
+                return `
+                    <div class="data-item job-item">
+                        <h4>${title}</h4>
+                        <div class="meta">${company} | ${location} | ${timestamp}</div>
+                        <div class="details">
+                            Department: ${department} | Type: ${employmentType}<br>
+                            ${url && url !== '' && !url.includes('not accessible') ? `<a href="${url}" target="_blank" style="color: #4299e1;">View Job Posting</a>` : 'Direct job URL not accessible'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Initialize
+        connectWebSocket();
+        
+        // Update uptime every minute
+        setInterval(() => {
+            stats.uptime += 60;
+            updateStats(stats);
+        }, 60000);
+    </script>
 </body>
 </html>

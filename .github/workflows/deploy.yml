@@ -1,0 +1,53 @@
+name: Deploy to Digital Ocean
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run tests
+      run: npm test --if-present
+      
+    - name: Deploy to Digital Ocean
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.DO_HOST }}
+        username: ${{ secrets.DO_USERNAME }}
+        key: ${{ secrets.DO_SSH_KEY }}
+        script: |
+          cd /opt/gaming-tracker
+          git pull origin main
+          npm install --production
+          pm2 restart gaming-tracker
+          pm2 save
+          
+    - name: Health Check
+      run: |
+        sleep 30
+        curl -f http://${{ secrets.DO_HOST }}:3000/health || exit 1
+        
+    - name: Notify Slack
+      if: always()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        fields: repo,message,commit,author,action,eventName,ref,workflow

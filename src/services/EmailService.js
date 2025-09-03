@@ -1,10 +1,11 @@
 const nodemailer = require('nodemailer');
 const logger = require('../utils/logger');
+const security = require('../middleware/security');
 
 class EmailService {
   constructor() {
     this.transporter = null;
-    this.recipients = process.env.EMAIL_RECIPIENTS ? 
+    this.recipients = process.env.EMAIL_RECIPIENTS ?
       process.env.EMAIL_RECIPIENTS.split(',').map(email => email.trim()) : [];
   }
 
@@ -15,7 +16,7 @@ class EmailService {
     }
 
     try {
-      this.transporter = nodemailer.createTransporter({
+      this.transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
           user: process.env.EMAIL_USER,
@@ -61,7 +62,7 @@ class EmailService {
             </tr>
             <tr style="background: #f8f9fa;">
               <td style="padding: 12px; border: 1px solid #dee2e6; font-weight: bold;">Skills</td>
-              <td style="padding: 12px; border: 1px solid #dee2e6;">${hire.skills.join(', ') || 'N/A'}</td>
+              <td style="padding: 12px; border: 1px solid #dee2e6;">${Array.isArray(hire.skills) ? hire.skills.join(', ') : hire.skills || 'Skills not listed'}</td>
             </tr>
           </table>
 
@@ -70,7 +71,7 @@ class EmailService {
             <p style="margin: 5px 0;"><strong>Industry:</strong> ${company.industry || 'Gaming'}</p>
             <p style="margin: 5px 0;"><strong>Company Size:</strong> ${company.companySize || 'Unknown'}</p>
             <p style="margin: 5px 0;"><strong>Priority Level:</strong> ${company.priority}</p>
-            <p style="margin: 5px 0;"><strong>Experience Level:</strong> ${hire.experience} previous positions</p>
+            <p style="margin: 5px 0;"><strong>Experience Level:</strong> ${hire.experience || 'Experience not disclosed'} years</p>
           </div>
 
           ${hire.linkedinUrl ? `
@@ -96,7 +97,7 @@ class EmailService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      logger.info(`📧 Sent hire email for ${hire.name} at ${company.name}`);
+      logger.info(`📧 Sent hire email for ${security.sanitizeLog(hire.name)} at ${security.sanitizeLog(company.name)}`);
     } catch (error) {
       logger.error('❌ Failed to send hire email:', error);
     }
@@ -165,7 +166,7 @@ class EmailService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      logger.info(`📧 Sent job email for ${job.title} at ${company.name}`);
+      logger.info(`📧 Sent job email for ${security.sanitizeLog(job.title)} at ${security.sanitizeLog(company.name)}`);
     } catch (error) {
       logger.error('❌ Failed to send job email:', error);
     }

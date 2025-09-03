@@ -1,267 +1,316 @@
+require('dotenv').config();
 const express = require('express');
-const bodyParser = require('body-parser');
-const { spawn } = require('child_process');
+const http = require('http');
+const WebSocket = require('ws');
 const path = require('path');
-const fs = require('fs');
 const logger = require('../utils/logger');
 const CompanyTracker = require('../services/CompanyTracker');
+const setupAnalyticsRoutes = require('./routes/analytics');
+const security = require('../middleware/security');
+const errorHandler = require('../utils/errorHandler');
 
 const app = express();
-app.use(bodyParser.json());
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+const PORT = process.env.PORT || 3000;
+
+let tracker;
+let clients = [];
+
+// Security middleware
+app.use(security.getSecurityHeaders());
+app.use(security.getCorsConfig());
+app.use(security.rateLimiter);
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Enhanced tracker management
-let trackerProcess = null;
-let trackerInstance = null;
-let systemStats = {
-  totalHires: 0,
-  totalJobs: 0,
-  companiesLoaded: 0,
-  errors: 0,
-  uptime: 0,
-  startTime: null
-};
-
-// Initialize tracker instance for direct access
-async function initializeTracker() {
-  try {
-    trackerInstance = new CompanyTracker();
-    await trackerInstance.initialize();
-    systemStats.companiesLoaded = trackerInstance.companies?.length || 0;
-    logger.info('🎮 Tracker instance initialized for web interface');
-  } catch (error) {
-    logger.error('❌ Failed to initialize tracker instance:', error);
-    throw error;
+// WebSocket connection handling
+wss.on('connection', (ws) => {
+  clients.push(ws);
+  logger.info('🔗 Web client connected');
+  
+  // Send initial data
+  if (tracker) {
+    ws.send(JSON.stringify({
+      type: 'stats',
+      data: tracker.getStats()
+    }));
+    
+    ws.send(JSON.stringify({
+      type: 'companies',
+      data: tracker.companies
+    }));
   }
+  
+  ws.on('close', () => {
+    clients = clients.filter(client => client !== ws);
+    logger.info('❌ Web client disconnected');
+  });
+});
+
+// Broadcast to all clients with error handling
+function broadcast(data) {
+  clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      try {
+        client.send(JSON.stringify(data));
+      } catch (error) {
+        logger.warn(`⚠️ Failed to send message to client: ${error.message}`);
+      }
+    }
+  });
 }
 
-// Start the tracker
-app.post('/start', async (req, res) => {
+// API Routes with authentication
+app.use('/api', security.apiKeyAuth);
+
+// Analytics routes
+app.use('/api/analytics', (req, res, next) => {
+  if (tracker) {
+    const analyticsRouter = setupAnalyticsRoutes(tracker.getServices());
+    analyticsRouter(req, res, next);
+  } else {
+    res.status(503).json({ error: 'Tracker not initialized' });
+  }
+});
+
+// Routes
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'control-room.html'));
+});
+
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+app.get('/control', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'control-room.html'));
+});
+
+app.get('/legacy', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/health', async (req, res) => {
   try {
-    if (trackerProcess) {
-      return res.json({ status: 'running', message: 'Tracker already running' });
-    }
-
-    // Start tracker process
-    trackerProcess = spawn('node', ['app.js'], {
-      cwd: path.resolve(__dirname, '..'),
-      env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    trackerProcess.stdout.on('data', (data) => {
-      const message = data.toString().trim();
-      logger.info(`[TRACKER] ${message}`);
-      
-      // Parse stats from tracker output
-      if (message.includes('new hires') || message.includes('new jobs')) {
-        updateStatsFromLog(message);
-      }
-    });
-
-    trackerProcess.stderr.on('data', (data) => {
-      logger.error(`[TRACKER] ${data.toString()}`);
-      systemStats.errors++;
-    });
-
-    trackerProcess.on('close', (code) => {
-      logger.info(`Tracker exited with code ${code}`);
-      trackerProcess = null;
-      systemStats.startTime = null;
-    });
-
-    systemStats.startTime = new Date();
-    systemStats.errors = 0;
-    
+    const healthStatus = healthMonitor ? await healthMonitor.performHealthCheck() : { status: 'unknown' };
     res.json({ 
-      status: 'started', 
-      message: 'Tracker started successfully',
-      timestamp: systemStats.startTime
+      ...healthStatus,
+      companies: tracker ? tracker.companies.length : 0,
+      stats: tracker ? tracker.getAdvancedStats() : {}
     });
   } catch (error) {
-    logger.error('❌ Failed to start tracker:', error);
-    res.status(500).json({ error: 'Failed to start tracker', details: error.message });
+    res.status(500).json({ status: 'error', error: error.message });
   }
 });
 
-// Stop the tracker
-app.post('/stop', (req, res) => {
+app.post('/api/force-tracking', security.requireAuth, async (req, res) => {
   try {
-    if (!trackerProcess) {
-      return res.json({ status: 'not running', message: 'Tracker not running' });
-    }
-
-    trackerProcess.kill('SIGTERM');
-    trackerProcess = null;
-    systemStats.startTime = null;
-    
-    res.json({ 
-      status: 'stopped', 
-      message: 'Tracker stopped successfully',
-      timestamp: new Date()
-    });
-  } catch (error) {
-    logger.error('❌ Failed to stop tracker:', error);
-    res.status(500).json({ error: 'Failed to stop tracker', details: error.message });
-  }
-});
-
-// Enhanced status endpoint
-app.get('/status', (req, res) => {
-  const isRunning = trackerProcess !== null;
-  const uptime = systemStats.startTime ? 
-    Math.floor((Date.now() - systemStats.startTime.getTime()) / 1000) : 0;
-  
-  res.json({ 
-    status: isRunning ? 'running' : 'stopped',
-    uptime,
-    startTime: systemStats.startTime,
-    processId: trackerProcess?.pid || null
-  });
-});
-
-// System statistics endpoint
-app.get('/stats', (req, res) => {
-  const uptime = systemStats.startTime ? 
-    Math.floor((Date.now() - systemStats.startTime.getTime()) / 1000) : 0;
-  
-  res.json({
-    ...systemStats,
-    uptime,
-    isRunning: trackerProcess !== null,
-    lastUpdated: new Date().toISOString()
-  });
-});
-
-// Companies endpoint
-app.get('/companies', async (req, res) => {
-  try {
-    if (trackerInstance && trackerInstance.companies) {
-      res.json({
-        companies: trackerInstance.companies,
-        count: trackerInstance.companies.length,
-        lastUpdated: new Date().toISOString()
-      });
-    } else {
-      // Try to load companies directly
-      const GoogleSheetsService = require('../services/GoogleSheetsService');
-      const sheetsService = new GoogleSheetsService();
-      await sheetsService.initialize();
-      const companies = await sheetsService.getCompanies();
-      
-      res.json({
-        companies: companies || [],
-        count: companies?.length || 0,
-        lastUpdated: new Date().toISOString()
-      });
-    }
-  } catch (error) {
-    logger.error('❌ Failed to load companies:', error);
-    res.status(500).json({
-      error: 'Failed to load companies',
-      details: error.message,
-      lastUpdated: new Date().toISOString()
-    });
-  }
-});
-
-// System logs endpoint
-app.get('/logs', (req, res) => {
-  try {
-    const logFile = path.join(__dirname, '../../logs/combined.log');
-    if (fs.existsSync(logFile)) {
-      const logs = fs.readFileSync(logFile, 'utf8')
-        .split('\n')
-        .filter(line => line.trim())
-        .slice(-50) // Last 50 lines
-        .map(line => {
-          try {
-            const parsed = JSON.parse(line);
-            return {
-              timestamp: parsed.timestamp,
-              level: parsed.level,
-              message: parsed.message
-            };
-          } catch {
-            return {
-              timestamp: new Date().toISOString(),
-              level: 'info',
-              message: line
-            };
-          }
-        });
-      
-      res.json({ logs, count: logs.length });
-    } else {
-      res.json({ logs: [], count: 0 });
-    }
-  } catch (error) {
-    res.json({ logs: [], count: 0, error: error.message });
-  }
-});
-
-// Manual trigger endpoint
-app.post('/trigger', async (req, res) => {
-  try {
-    if (!trackerInstance) {
+    if (!tracker) {
       return res.status(400).json({ error: 'Tracker not initialized' });
     }
     
-    // Trigger a manual tracking cycle
-    const results = await trackerInstance.runTrackingCycle();
+    if (tracker.isTracking) {
+      return res.status(400).json({ error: 'Tracking already in progress' });
+    }
     
-    res.json({
-      success: true,
-      message: 'Manual tracking cycle completed',
-      results: {
-        newHires: results.newHires?.length || 0,
-        newJobs: results.newJobs?.length || 0,
-        errors: results.errors?.length || 0
-      },
-      timestamp: new Date().toISOString()
+    broadcast({ type: 'trackingStart' });
+    const results = await tracker.runTrackingCycle();
+    
+    broadcast({ 
+      type: 'trackingComplete', 
+      data: { hires: results?.newHires?.length || 0, jobs: results?.newJobs?.length || 0 }
+    });
+    
+    res.json({ success: true, results });
+  } catch (error) {
+    logger.error('❌ Force tracking failed:', error);
+    broadcast({ type: 'trackingError', data: { error: error.message } });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/reload-companies', security.requireAuth, async (req, res) => {
+  try {
+    if (!tracker) {
+      return res.status(400).json({ error: 'Tracker not initialized' });
+    }
+    
+    await tracker.loadCompanies();
+    
+    broadcast({ 
+      type: 'companies', 
+      data: tracker.companies 
+    });
+    
+    res.json({ success: true, count: tracker.companies.length });
+  } catch (error) {
+    logger.error('❌ Reload companies failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/test-notifications', security.requireAuth, async (req, res) => {
+  try {
+    if (!tracker) {
+      return res.status(400).json({ error: 'Tracker not initialized' });
+    }
+    
+    // Send test hire notification
+    const testHire = {
+      name: 'John Doe',
+      title: 'Senior Game Developer',
+      location: 'Malta',
+      skills: ['JavaScript', 'Unity', 'C#'],
+      experience: 5,
+      source: 'Test Data'
+    };
+    
+    const testCompany = {
+      name: 'Test Gaming Company',
+      priority: 'High',
+      industry: 'Gaming'
+    };
+    
+    await tracker.slackService.sendHireNotification(testCompany, testHire);
+    
+    broadcast({ 
+      type: 'newHire', 
+      data: { ...testHire, company: testCompany.name }
+    });
+    
+    res.json({ success: true, message: 'Test notifications sent' });
+  } catch (error) {
+    logger.error('❌ Test notifications failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/export-data', security.requireAuth, (req, res) => {
+  try {
+    if (!tracker) {
+      return res.status(400).json({ error: 'Tracker not initialized' });
+    }
+    
+    const data = {
+      companies: tracker.companies || [],
+      stats: tracker.getStats() || {},
+      exportTime: new Date().toISOString()
+    };
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename=gaming-tracker-data.json');
+    res.send(JSON.stringify(data, null, 2));
+  } catch (error) {
+    logger.error('❌ Export failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/hires', security.requireAuth, async (req, res) => {
+  try {
+    if (!tracker) {
+      return res.status(400).json({ error: 'Tracker not initialized' });
+    }
+    const hires = await tracker.sheetsService.getHires();
+    res.json({ success: true, data: hires });
+  } catch (error) {
+    logger.error('❌ Failed to fetch hires:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/jobs', security.requireAuth, async (req, res) => {
+  try {
+    if (!tracker) {
+      return res.status(400).json({ error: 'Tracker not initialized' });
+    }
+    const jobs = await tracker.sheetsService.getJobs();
+    res.json({ success: true, data: jobs });
+  } catch (error) {
+    logger.error('❌ Failed to fetch jobs:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
+app.post('/api/reset-and-track', security.requireAuth, async (req, res) => {
+  try {
+    if (!tracker) {
+      return res.status(400).json({ error: 'Tracker not initialized' });
+    }
+    
+    broadcast({ type: 'resetStart' });
+    
+    // Complete fresh start
+    await tracker.sheetsService.completeReset();
+    
+    // Historical tracking from August 1st, 2025
+    const results = await tracker.runHistoricalTracking('2025-08-01');
+    
+    broadcast({ 
+      type: 'resetComplete', 
+      data: { hires: results?.newHires?.length || 0, jobs: results?.newJobs?.length || 0 }
+    });
+    
+    res.json({ success: true, message: 'Fresh tracking completed', results });
+  } catch (error) {
+    logger.error('❌ Reset and tracking failed:', error);
+    broadcast({ type: 'resetError', data: { error: error.message } });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Initialize tracker with Phase 3 services
+async function initializeTracker() {
+  try {
+    tracker = new CompanyTracker();
+    
+    await tracker.initialize();
+    await tracker.start();
+    
+    // Override processNewHires to broadcast to web clients
+    const originalProcessNewHires = tracker.processNewHires.bind(tracker);
+    tracker.processNewHires = async (company, hires) => {
+      await originalProcessNewHires(company, hires);
+      hires.forEach(hire => {
+        broadcast({ 
+          type: 'newHire', 
+          data: { ...hire, company: company.name }
+        });
+      });
+    };
+    
+    // Override processNewJobs to broadcast to web clients
+    const originalProcessNewJobs = tracker.processNewJobs.bind(tracker);
+    tracker.processNewJobs = async (company, jobs) => {
+      await originalProcessNewJobs(company, jobs);
+      jobs.forEach(job => {
+        broadcast({ 
+          type: 'newJob', 
+          data: { ...job, company: company.name }
+        });
+      });
+    };
+    
+    logger.info('🎮 Gaming Industry Tracker initialized with Phase 3 services');
+    
+    // Setup monitoring alerts
+    const services = tracker.getServices();
+    services.monitoring.on('alert_created', (alert) => {
+      broadcast({ type: 'alert', data: alert });
     });
   } catch (error) {
-    logger.error('❌ Manual trigger failed:', error);
-    res.status(500).json({ error: 'Manual trigger failed', details: error.message });
-  }
-});
-
-// Health check
-app.get('/health', (req, res) => {
-  const health = {
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    tracker: {
-      running: trackerProcess !== null,
-      companies: systemStats.companiesLoaded
-    }
-  };
-  
-  res.json(health);
-});
-
-// Helper function to update stats from log messages
-function updateStatsFromLog(message) {
-  const hiresMatch = message.match(/(\d+) new hires/);
-  const jobsMatch = message.match(/(\d+) new jobs/);
-  
-  if (hiresMatch) {
-    systemStats.totalHires += parseInt(hiresMatch[1]);
-  }
-  
-  if (jobsMatch) {
-    systemStats.totalJobs += parseInt(jobsMatch[1]);
+    logger.error('❌ Failed to initialize tracker:', error);
   }
 }
 
-// Initialize tracker on startup
-initializeTracker();
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  logger.info(`🌐 Gaming Tracker Web UI running on port ${PORT}`);
-  logger.info(`🔗 Health check available at http://localhost:${PORT}/health`);
-  logger.info(`📊 Dashboard available at http://localhost:${PORT}`);
+// Start server
+server.listen(PORT, () => {
+  logger.info(`🌐 Gaming Industry Tracker Web Interface: http://localhost:${PORT}`);
+  initializeTracker();
 });
+
+module.exports = { app, server, tracker };

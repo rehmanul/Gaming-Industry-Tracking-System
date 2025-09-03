@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gaming Industry Tracker - Control Room</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        .control-room {
+            min-height: 100vh;
+            display: grid;
+            grid-template-areas: 
+                "header header header"
+                "sidebar main alerts"
+                "sidebar main alerts";
+            grid-template-columns: 280px 1fr 320px;
+            grid-template-rows: 70px 1fr;
+            gap: 1px;
+            background: #0f172a;
+        }
+
+        .header {
+            grid-area: header;
+            background: linear-gradient(90deg, #1e293b 0%, #334155 100%);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            border-bottom: 2px solid #3b82f6;
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #60a5fa;
+        }
+
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid #22c55e;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .sidebar {
+            grid-area: sidebar;
+            background: #1e293b;
+            padding: 1.5rem;
+            border-right: 1px solid #334155;
+        }
+
+        .nav-section {
+            margin-bottom: 2rem;
+        }
+
+        .nav-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-bottom: 1rem;
+            letter-spacing: 0.05em;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 4px;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: rgba(59, 130, 246, 0.1);
+            color: #60a5fa;
+        }
+
+        .main-content {
+            grid-area: main;
+            background: #0f172a;
+            padding: 2rem;
+            overflow-y: auto;
+            max-height: calc(100vh - 70px);
+        }
+
+        .alerts-panel {
+            grid-area: alerts;
+            background: #1e293b;
+            padding: 1.5rem;
+            border-left: 1px solid #334155;
+            overflow-y: auto;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: linear-gradient(145deg, #1e293b 0%, #334155 100%);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid #475569;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(59, 130, 246, 0.2);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #f1f5f9;
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(59, 130, 246, 0.1);
+            color: #60a5fa;
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #60a5fa;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-label {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 250px;
+            margin-top: 1rem;
+        }
+
+        .control-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .control-btn {
+            background: linear-gradient(145deg, #3b82f6 0%, #1d4ed8 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+        }
+
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .control-btn.danger {
+            background: linear-gradient(145deg, #ef4444 0%, #dc2626 100%);
+        }
+
+        .control-btn.success {
+            background: linear-gradient(145deg, #22c55e 0%, #16a34a 100%);
+        }
+
+        .alert-item {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .alert-item.warning {
+            background: rgba(245, 158, 11, 0.1);
+            border-color: #f59e0b;
+        }
+
+        .alert-item.info {
+            background: rgba(59, 130, 246, 0.1);
+            border-color: #3b82f6;
+        }
+
+        .company-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .company-card {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid #334155;
+        }
+
+        .company-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 0.5rem;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-active { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+        .status-tracking { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+        .status-error { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #334155;
+            border-radius: 50%;
+            border-top-color: #3b82f6;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .modal-content {
+            background: #1e293b;
+            margin: 5% auto;
+            padding: 2rem;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            border: 1px solid #334155;
+        }
+
+        .close {
+            color: #94a3b8;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover { color: #f1f5f9; }
+
+        .tab-container {
+            display: flex;
+            border-bottom: 1px solid #334155;
+            margin-bottom: 1.5rem;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            color: #60a5fa;
+            border-bottom-color: #3b82f6;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 1200px) {
+            .control-room {
+                grid-template-areas: 
+                    "header header"
+                    "main alerts";
+                grid-template-columns: 1fr 320px;
+            }
+            .sidebar { display: none; }
+        }
+
+        @media (max-width: 768px) {
+            .control-room {
+                grid-template-areas: 
+                    "header"
+                    "main";
+                grid-template-columns: 1fr;
+            }
+            .alerts-panel { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="control-room">
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-gamepad"></i>
+                Gaming Industry Control Room
+            </div>
+            <div class="system-status">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span id="systemStatus">System Online</span>
+                </div>
+                <div style="color: #94a3b8; font-size: 0.9rem;">
+                    Uptime: <span id="uptime">--</span>
+                </div>
+            </div>
+        </header>
+
+        <nav class="sidebar">
+            <div class="nav-section">
+                <div class="nav-title">Dashboard</div>
+                <div class="nav-item active" data-section="overview">
+                    <i class="fas fa-tachometer-alt"></i>
+                    Overview
+                </div>
+                <div class="nav-item" data-section="analytics">
+                    <i class="fas fa-chart-line"></i>
+                    Analytics
+                </div>
+                <div class="nav-item" data-section="companies">
+                    <i class="fas fa-building"></i>
+                    Companies
+                </div>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-title">Operations</div>
+                <div class="nav-item" data-section="tracking">
+                    <i class="fas fa-search"></i>
+                    Tracking Control
+                </div>
+                <div class="nav-item" data-section="performance">
+                    <i class="fas fa-server"></i>
+                    Performance
+                </div>
+                <div class="nav-item" data-section="logs">
+                    <i class="fas fa-file-alt"></i>
+                    System Logs
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-title">Management</div>
+                <div class="nav-item" data-section="settings">
+                    <i class="fas fa-cog"></i>
+                    Settings
+                </div>
+                <div class="nav-item" data-section="export">
+                    <i class="fas fa-download"></i>
+                    Export Data
+                </div>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <!-- Overview Section -->
+            <div id="overview-section" class="section active">
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Total Jobs Tracked</div>
+                            <div class="card-icon"><i class="fas fa-briefcase"></i></div>
+                        </div>
+                        <div class="metric-value" id="totalJobs">0</div>
+                        <div class="metric-label">Across all companies</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">New Hires Found</div>
+                            <div class="card-icon"><i class="fas fa-user-plus"></i></div>
+                        </div>
+                        <div class="metric-value" id="totalHires">0</div>
+                        <div class="metric-label">This month</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Success Rate</div>
+                            <div class="card-icon"><i class="fas fa-chart-pie"></i></div>
+                        </div>
+                        <div class="metric-value" id="successRate">0%</div>
+                        <div class="metric-label">Tracking accuracy</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Active Companies</div>
+                            <div class="card-icon"><i class="fas fa-building"></i></div>
+                        </div>
+                        <div class="metric-value" id="activeCompanies">0</div>
+                        <div class="metric-label">Currently monitored</div>
+                    </div>
+                </div>
+
+                <div class="control-panel">
+                    <button class="control-btn" onclick="forceTracking()">
+                        <i class="fas fa-play"></i>
+                        Start Tracking
+                    </button>
+                    <button class="control-btn success" onclick="reloadCompanies()">
+                        <i class="fas fa-sync"></i>
+                        Reload Companies
+                    </button>
+                    <button class="control-btn" onclick="testNotifications()">
+                        <i class="fas fa-bell"></i>
+                        Test Alerts
+                    </button>
+                    <button class="control-btn danger" onclick="emergencyStop()">
+                        <i class="fas fa-stop"></i>
+                        Emergency Stop
+                    </button>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Job Trends (7 Days)</div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="jobTrendsChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Top Companies</div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="companiesChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Section -->
+            <div id="analytics-section" class="section">
+                <div class="tab-container">
+                    <div class="tab active" data-tab="market">Market Intelligence</div>
+                    <div class="tab" data-tab="skills">Skills Analysis</div>
+                    <div class="tab" data-tab="trends">Hiring Trends</div>
+                </div>
+
+                <div id="market-tab" class="tab-content active">
+                    <div class="dashboard-grid">
+                        <div class="card">
+                            <div class="card-title">Market Activity</div>
+                            <div class="metric-value" id="marketActivity">0%</div>
+                            <div class="metric-label">Companies actively hiring</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">Growth Companies</div>
+                            <div id="growthCompanies">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="skills-tab" class="tab-content">
+                    <div class="card">
+                        <div class="card-title">Hot Skills in Gaming Industry</div>
+                        <div class="chart-container">
+                            <canvas id="skillsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="trends-tab" class="tab-content">
+                    <div class="card">
+                        <div class="card-title">Hiring Velocity Trends</div>
+                        <div class="chart-container">
+                            <canvas id="trendsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Companies Section -->
+            <div id="companies-section" class="section">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Company Status Overview</div>
+                        <button class="control-btn" onclick="refreshCompanies()">
+                            <i class="fas fa-sync"></i>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="company-grid" id="companiesGrid">
+                        <!-- Companies will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance Section -->
+            <div id="performance-section" class="section">
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <div class="card-title">System Performance</div>
+                        <div class="chart-container">
+                            <canvas id="performanceChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Cache Performance</div>
+                        <div class="metric-value" id="cacheHitRate">0%</div>
+                        <div class="metric-label">Hit rate</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <aside class="alerts-panel">
+            <h3 style="margin-bottom: 1rem; color: #f1f5f9;">
+                <i class="fas fa-exclamation-triangle"></i>
+                Live Alerts
+            </h3>
+            <div id="alertsContainer">
+                <!-- Alerts will be loaded here -->
+            </div>
+        </aside>
+    </div>
+
+    <script src="control-room.js"></script>
+</body>
+</html>

@@ -1,20 +1,31 @@
 const cron = require('node-cron');
 const HiringTracker = require('./HiringTracker');
 const JobPostingTracker = require('./JobPostingTracker');
+const OnboardingTracker = require('./OnboardingTracker');
 const GoogleSheetsService = require('./GoogleSheetsService');
 const SlackService = require('./SlackService');
 const EmailService = require('./EmailService');
+const DataEnhancer = require('../utils/dataEnhancer');
 const logger = require('../utils/logger');
+const security = require('../middleware/security');
+const MonitoringService = require('./MonitoringService');
+const IntelligenceService = require('./IntelligenceService');
+const CacheService = require('./CacheService');
 
 class CompanyTracker {
   constructor() {
     this.hiringTracker = new HiringTracker();
     this.jobTracker = new JobPostingTracker();
+    this.onboardingTracker = new OnboardingTracker();
     this.sheetsService = new GoogleSheetsService();
     this.slackService = new SlackService();
     this.emailService = new EmailService();
+    this.monitoring = new MonitoringService();
+    this.intelligence = new IntelligenceService();
+    this.cache = new CacheService();
     this.companies = [];
     this.isRunning = false;
+    this.isTracking = false;
     this.stats = {
       totalHires: 0,
       totalJobs: 0,
@@ -23,6 +34,43 @@ class CompanyTracker {
       startTime: new Date().toISOString()
     };
     this.scheduledJobs = [];
+    this.setupMonitoring();
+  }
+
+  setupMonitoring() {
+    this.monitoring.on('alert_created', (alert) => {
+      logger.warn(`🚨 Alert: ${alert.message}`);
+      if (alert.severity === 'critical') {
+        this.slackService.sendSystemNotification('Critical Alert', alert.message, 'error');
+      }
+    });
+  }
+
+  setAnalyticsService(analyticsService) {
+    this.analyticsService = analyticsService;
+  }
+
+  getServices() {
+    return {
+      monitoring: this.monitoring,
+      intelligence: this.intelligence,
+      cache: this.cache,
+      companyTracker: this
+    };
+  }
+
+  getCompanies() {
+    return this.companies;
+  }
+
+  isValidCronExpression(expression) {
+    if (!expression || typeof expression !== 'string') {
+      return false;
+    }
+
+    // Basic cron expression validation (supports standard and additional formats)
+    const cronPattern = /^(?:\*(?:\/\d+)?|\d+(?:-\d+)?(?:\/\d+)?(?:,\d+(?:-\d+)?(?:\/\d+)?)*)(?:\s+(?:\*(?:\/\d+)?|\d+(?:-\d+)?(?:\/\d+)?(?:,\d+(?:-\d+)?(?:\/\d+)?)*)){4,5}\s*$/;
+    return cronPattern.test(expression.trim());
   }
 
   async initialize() {
@@ -37,6 +85,7 @@ class CompanyTracker {
       // Inject dependencies
       this.hiringTracker.setGoogleSheetsService(this.sheetsService);
       this.jobTracker.setGoogleSheetsService(this.sheetsService);
+      this.onboardingTracker.setGoogleSheetsService(this.sheetsService);
 
       // Load companies from Google Sheets
       await this.loadCompanies();
@@ -70,6 +119,9 @@ class CompanyTracker {
       return;
     }
 
+    // Initialize first
+    await this.initialize();
+    
     this.isRunning = true;
 
     // Send startup notification
@@ -79,48 +131,77 @@ class CompanyTracker {
     logger.info('🏃‍♂️ Starting initial tracking cycle...');
     await this.runTrackingCycle();
 
-    // Schedule regular checks every 30 minutes
-    const trackingJob = cron.schedule('*/30 * * * *', async () => {
-      if (this.isRunning) {
-        await this.runTrackingCycle();
-      }
-    });
-    this.scheduledJobs.push(trackingJob);
+    try {
+      // Define cron expressions with validation
+      const cronExpressions = {
+        tracking: process.env.TRACKING_CRON || '*/30 * * * *',
+        reload: process.env.RELOAD_CRON || '0 */4 * * *',
+        summary: process.env.SUMMARY_CRON || '0 9 * * *',
+        health: process.env.HEALTH_CRON || '*/5 * * * *'
+      };
 
-    // Reload companies every 4 hours
-    const reloadJob = cron.schedule('0 */4 * * *', async () => {
-      if (this.isRunning) {
-        await this.loadCompanies();
+      // Validate cron expressions
+      for (const [name, expression] of Object.entries(cronExpressions)) {
+        if (!expression || typeof expression !== 'string') {
+          throw new Error(`Invalid cron expression for ${name}: ${expression}`);
+        }
+        if (!this.isValidCronExpression(expression)) {
+          throw new Error(`Invalid cron format for ${name}: ${expression}`);
+        }
       }
-    });
-    this.scheduledJobs.push(reloadJob);
 
-    // Send daily summary at 9 AM
-    const summaryJob = cron.schedule('0 9 * * *', async () => {
-      if (this.isRunning) {
-        await this.sendDailySummary();
-      }
-    });
-    this.scheduledJobs.push(summaryJob);
+      // Schedule regular checks every 30 minutes
+      const trackingJob = cron.schedule(cronExpressions.tracking, async () => {
+        if (this.isRunning) {
+          await this.runTrackingCycle();
+        }
+      });
+      this.scheduledJobs.push(trackingJob);
 
-    // Health check every 5 minutes
-    const healthJob = cron.schedule('*/5 * * *', async () => {
-      if (this.isRunning) {
-        await this.performHealthCheck();
-      }
-    });
-    this.scheduledJobs.push(healthJob);
+      // Reload companies every 4 hours
+      const reloadJob = cron.schedule(cronExpressions.reload, async () => {
+        if (this.isRunning) {
+          await this.loadCompanies();
+        }
+      });
+      this.scheduledJobs.push(reloadJob);
 
-    logger.info('⏰ Scheduled jobs started:');
-    logger.info('  - Tracking cycle: Every 30 minutes');
-    logger.info('  - Company reload: Every 4 hours');  
-    logger.info('  - Daily summary: 9:00 AM');
-    logger.info('  - Health check: Every 5 minutes');
+      // Send daily summary at 9 AM
+      const summaryJob = cron.schedule(cronExpressions.summary, async () => {
+        if (this.isRunning) {
+          await this.sendDailySummary();
+        }
+      });
+      this.scheduledJobs.push(summaryJob);
+
+      // Health check every 5 minutes
+      const healthJob = cron.schedule(cronExpressions.health, async () => {
+        if (this.isRunning) {
+          await this.performHealthCheck();
+        }
+      });
+      this.scheduledJobs.push(healthJob);
+
+      logger.info('⏰ Scheduled jobs started:');
+      logger.info(`  - Tracking cycle: ${cronExpressions.tracking}`);
+      logger.info(`  - Company reload: ${cronExpressions.reload}`);
+      logger.info(`  - Daily summary: ${cronExpressions.summary}`);
+      logger.info(`  - Health check: ${cronExpressions.health}`);
+
+    } catch (error) {
+      logger.error('❌ Failed to start scheduled jobs:', error);
+      this.isRunning = false;
+      throw error;
+    }
   }
 
   async runTrackingCycle() {
-    if (!this.isRunning) return;
+    if (this.isTracking) {
+      logger.warn('⚠️ Tracking already in progress');
+      return { newHires: [], newJobs: [], errors: [] };
+    }
 
+    this.isTracking = true;
     logger.info('🔄 Starting tracking cycle...');
     this.stats.lastRun = new Date().toISOString();
 
@@ -130,74 +211,113 @@ class CompanyTracker {
       errors: []
     };
 
-    // Sort companies by priority
-    const priorityCompanies = this.companies.filter(c => c.priority?.toLowerCase() === 'high');
-    const mediumCompanies = this.companies.filter(c => c.priority?.toLowerCase() === 'medium');
-    const lowCompanies = this.companies.filter(c => c.priority?.toLowerCase() === 'low');
-
-    const sortedCompanies = [...priorityCompanies, ...mediumCompanies, ...lowCompanies];
-
-    logger.info(`📋 Processing ${sortedCompanies.length} companies (${priorityCompanies.length} high priority)`);
-
-    // Process companies in order of priority
-    for (let i = 0; i < sortedCompanies.length; i++) {
-      const company = sortedCompanies[i];
-
-      if (!this.isRunning) break; // Check if system was stopped
-
-      try {
-        logger.info(`🏢 [${i + 1}/${sortedCompanies.length}] Processing ${company.name} (Priority: ${company.priority})`);
-
-        const startTime = Date.now();
-
-        // Track new hires if enabled
-        if (company.trackHiring) {
-          logger.debug(`🎯 Tracking hires for ${company.name}...`);
-          const newHires = await this.hiringTracker.trackCompany(company);
-          if (newHires.length > 0) {
-            results.newHires.push(...newHires.map(hire => ({ ...hire, companyName: company.name })));
-            await this.processNewHires(company, newHires);
-          }
-        }
-
-        // Track new job postings if enabled
-        if (company.trackJobs) {
-          logger.debug(`💼 Tracking jobs for ${company.name}...`);
-          const newJobs = await this.jobTracker.trackCompany(company);
-          if (newJobs.length > 0) {
-            results.newJobs.push(...newJobs.map(job => ({ ...job, companyName: company.name })));
-            await this.processNewJobs(company, newJobs);
-          }
-        }
-
-        const elapsed = Date.now() - startTime;
-        logger.debug(`⏱️ ${company.name} processed in ${elapsed}ms`);
-
-        // Progressive delay based on priority and position in queue
-        const delay = company.priority?.toLowerCase() === 'high' ? 3000 : 5000;
-        await this.delay(delay);
-
-      } catch (error) {
-        logger.error(`❌ Error tracking company ${company.name}:`, error);
-        results.errors.push({ 
-          company: company.name, 
-          error: error.message,
-          timestamp: new Date().toISOString()
-        });
-        this.stats.errors++;
+    try {
+      if (this.companies.length === 0) {
+        logger.warn('⚠️ No companies loaded for tracking');
+        return results;
       }
+
+      const sortedCompanies = this.companies.filter(c => c.trackHiring || c.trackJobs);
+      logger.info(`📋 Processing ${sortedCompanies.length} companies`);
+
+      for (let i = 0; i < sortedCompanies.length; i++) {
+        const company = sortedCompanies[i];
+
+        try {
+          logger.info(`🏢 [${i + 1}/${sortedCompanies.length}] Processing ${security.sanitizeLog(company.name)}`);
+
+          if (company.trackHiring) {
+            const newHires = await this.hiringTracker.trackCompany(company);
+            if (newHires.length > 0) {
+              results.newHires.push(...newHires.map(hire => ({ ...hire, companyName: company.name })));
+              await this.processNewHires(company, newHires);
+            }
+            
+            // Track onboarding announcements
+            const onboardingAnnouncements = await this.onboardingTracker.trackNewOnboarding(company);
+            if (onboardingAnnouncements.length > 0) {
+              results.newHires.push(...onboardingAnnouncements.map(hire => ({ ...hire, companyName: company.name })));
+              await this.processNewHires(company, onboardingAnnouncements);
+            }
+          }
+
+          if (company.trackJobs) {
+            const newJobs = await this.jobTracker.trackCompany(company);
+            if (newJobs.length > 0) {
+              results.newJobs.push(...newJobs.map(job => ({ ...job, companyName: company.name })));
+              await this.processNewJobs(company, newJobs);
+            }
+          }
+
+          await this.delay(3000);
+
+        } catch (error) {
+          logger.error(`❌ Error tracking company ${security.sanitizeLog(company.name)}:`, error);
+          results.errors.push({
+            company: company.name,
+            error: error.message,
+            timestamp: new Date().toISOString()
+          });
+          this.stats.errors++;
+        }
+      }
+
+      this.stats.totalHires += results.newHires.length;
+      this.stats.totalJobs += results.newJobs.length;
+
+      logger.info(`✅ Cycle complete: ${results.newHires.length} new hires, ${results.newJobs.length} new jobs, ${results.errors.length} errors`);
+
+    } finally {
+      this.isTracking = false;
     }
 
-    // Update statistics
-    this.stats.totalHires += results.newHires.length;
-    this.stats.totalJobs += results.newJobs.length;
+    return results;
+  }
 
-    const summary = `✅ Cycle complete: ${results.newHires.length} new hires, ${results.newJobs.length} new jobs, ${results.errors.length} errors`;
-    logger.info(summary);
+  async runHistoricalTracking(startDate) {
+    this.isTracking = true;
+    logger.info(`📅 Starting historical tracking from ${startDate}`);
 
-    // Send cycle summary for significant updates
-    if (results.newHires.length > 3 || results.newJobs.length > 5) {
-      await this.sendCycleSummary(results);
+    const results = {
+      newHires: [],
+      newJobs: [],
+      errors: []
+    };
+
+    try {
+      const sortedCompanies = this.companies.filter(c => c.trackHiring || c.trackJobs);
+      
+      for (let i = 0; i < sortedCompanies.length; i++) {
+        const company = sortedCompanies[i];
+        logger.info(`🏢 [${i + 1}/${sortedCompanies.length}] Historical tracking for ${security.sanitizeLog(company.name)}`);
+
+        try {
+          if (company.trackHiring) {
+            const hires = await this.hiringTracker.searchHistoricalHires(company, startDate);
+            if (hires.length > 0) {
+              results.newHires.push(...hires);
+              await this.processNewHires(company, hires);
+            }
+          }
+
+          if (company.trackJobs) {
+            const jobs = await this.jobTracker.searchHistoricalJobs(company, startDate);
+            if (jobs.length > 0) {
+              results.newJobs.push(...jobs);
+              await this.processNewJobs(company, jobs);
+            }
+          }
+
+          await this.delay(5000);
+        } catch (error) {
+          logger.error(`❌ Historical tracking error for ${security.sanitizeLog(company.name)}:`, error);
+          results.errors.push({ company: company.name, error: error.message });
+        }
+      }
+
+      logger.info(`✅ Historical tracking complete: ${results.newHires.length} hires, ${results.newJobs.length} jobs`);
+    } finally {
+      this.isTracking = false;
     }
 
     return results;
@@ -206,21 +326,30 @@ class CompanyTracker {
   async processNewHires(company, hires) {
     for (const hire of hires) {
       try {
-        // Update Google Sheets
-        await this.sheetsService.addHire(company, hire);
+        // Enhance hire data with meaningful fallbacks
+        const enhancedHire = DataEnhancer.enhanceHireData(hire);
+        const validation = DataEnhancer.validateData(enhancedHire, 'hire');
+        
+        logger.info(`📊 Hire data completeness: ${validation.completeness}% for ${enhancedHire.name}`);
+        if (validation.issues.length > 0) {
+          logger.warn(`⚠️ Data issues: ${validation.issues.join(', ')}`);
+        }
+
+        // Update Google Sheets with enhanced data
+        await this.sheetsService.addHire(company, enhancedHire);
 
         // Send Slack notification
-        await this.slackService.sendHireNotification(company, hire);
+        await this.slackService.sendHireNotification(company, enhancedHire);
 
         // Send email notification for high priority companies
         if (company.priority?.toLowerCase() === 'high') {
-          await this.emailService.sendHireNotification(company, hire);
+          await this.emailService.sendHireNotification(company, enhancedHire);
         }
 
         await this.delay(1500); // Rate limiting
 
       } catch (error) {
-        logger.error(`❌ Failed to process hire ${hire.name} for ${company.name}:`, error);
+        logger.error(`❌ Failed to process hire ${security.sanitizeLog(hire.name || 'Unknown')} for ${security.sanitizeLog(company.name)}:`, error);
       }
     }
   }
@@ -228,21 +357,30 @@ class CompanyTracker {
   async processNewJobs(company, jobs) {
     for (const job of jobs) {
       try {
-        // Update Google Sheets
-        await this.sheetsService.addJob(company, job);
+        // Enhance job data with meaningful fallbacks
+        const enhancedJob = DataEnhancer.enhanceJobData(job);
+        const validation = DataEnhancer.validateData(enhancedJob, 'job');
+        
+        logger.info(`📊 Job data completeness: ${validation.completeness}% for ${enhancedJob.title}`);
+        if (validation.issues.length > 0) {
+          logger.warn(`⚠️ Data issues: ${validation.issues.join(', ')}`);
+        }
+
+        // Update Google Sheets with enhanced data
+        await this.sheetsService.addJob(company, enhancedJob);
 
         // Send Slack notification
-        await this.slackService.sendJobNotification(company, job);
+        await this.slackService.sendJobNotification(company, enhancedJob);
 
         // Send email notification for high priority companies
         if (company.priority?.toLowerCase() === 'high') {
-          await this.emailService.sendJobNotification(company, job);
+          await this.emailService.sendJobNotification(company, enhancedJob);
         }
 
         await this.delay(1500); // Rate limiting
 
       } catch (error) {
-        logger.error(`❌ Failed to process job ${job.title} for ${company.name}:`, error);
+        logger.error(`❌ Failed to process job ${security.sanitizeLog(job.title || 'Unknown')} for ${security.sanitizeLog(company.name)}:`, error);
       }
     }
   }
@@ -345,6 +483,7 @@ class CompanyTracker {
   async cleanup() {
     this.stop();
     await this.jobTracker.cleanup();
+    await this.onboardingTracker.cleanup();
     logger.info('🧹 Cleanup completed');
   }
 

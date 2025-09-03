@@ -1,58 +1,65 @@
-# Use Node 20 LTS slim image (matches engines.node requirement)
-FROM node:20-bullseye-slim
+# Multi-stage build for production optimization
+FROM node:18-alpine AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Install dependencies needed for Puppeteer / Chromium
-RUN apt-get update && apt-get install -y \
-    chromium \
-    fonts-liberation \
-    libappindicator3-1 \
-    libasound2 \
-    libx11-xcb1 \
-    libxcb1 \
-    libxcomposite1 \
-    libxcursor1 \
-    libxdamage1 \
-    libxi6 \
-    libxtst6 \
-    libnss3 \
-    libxrandr2 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libgtk-3-0 \
-    libgbm1 \
-    wget \
-    curl \
-    ca-certificates \
-    git \
- && rm -rf /var/lib/apt/lists/*
-
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies (omit dev for production)
-RUN npm ci --omit=dev && npm cache clean --force
+# Install dependencies
+RUN npm ci --only=production && npm cache clean --force
+
+# Production stage
+FROM node:18-alpine AS production
+
+# Install security updates
+RUN apk update && apk upgrade && apk add --no-cache \
+    dumb-init \
+    chromium \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependencies from builder stage
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+
+# Copy application code
+COPY --chown=nextjs:nodejs . .
 
 # Create logs directory
-RUN mkdir -p logs && chmod 755 logs
+RUN mkdir -p logs && chown nextjs:nodejs logs
 
-# Add non-root user
-RUN groupadd -r nodejs && useradd -r -g nodejs nodejs && chown -R nodejs:nodejs /app
+# Set Puppeteer to use installed Chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+    NODE_ENV=production \
+    PORT=3000
 
-# Copy source code
-COPY src/ ./src/
+# Expose port
+EXPOSE 3000
 
-# Use non-root user
-USER nodejs
+# Switch to non-root user
+USER nextjs
 
-# Set Puppeteer to use system Chromium
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:3000/health', (res) => { \
+        if (res.statusCode === 200) process.exit(0); else process.exit(1); \
+    }).on('error', () => process.exit(1));"
 
-# Expose web UI port (Render uses PORT env var)
-EXPOSE 10000
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
 
-# Default command (can be overridden in Render)
-CMD ["npm", "start"]
+# Start application
+CMD ["node", "src/web/index.js"]

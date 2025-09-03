@@ -1,4 +1,5 @@
 const logger = require('../utils/logger');
+const security = require('../middleware/security');
 
 /**
  * Advanced rate limiting service
@@ -20,8 +21,8 @@ class RateLimiter {
   configure(service, config) {
     this.limits.set(service, { ...this.defaultConfig, ...config });
     this.queues.set(service, []);
-    
-    logger.info(`Rate limiter configured for ${service}:`, this.limits.get(service));
+
+    logger.info(`Rate limiter configured for ${security.sanitizeLog(service)}:`, this.limits.get(service));
   }
 
   /**
@@ -31,24 +32,24 @@ class RateLimiter {
     const config = this.limits.get(service) || this.defaultConfig;
     const key = `${service}:${identifier}`;
     const now = Date.now();
-    
+
     if (!this.queues.has(key)) {
       this.queues.set(key, []);
     }
-    
+
     const queue = this.queues.get(key);
-    
+
     // Remove old requests outside the window
     while (queue.length > 0 && now - queue[0] > config.window) {
       queue.shift();
     }
-    
+
     // Check if under limit
     if (queue.length < config.requests) {
       queue.push(now);
       return true;
     }
-    
+
     return false;
   }
 
@@ -57,9 +58,9 @@ class RateLimiter {
    */
   async waitForSlot(service, identifier = 'default') {
     const config = this.limits.get(service) || this.defaultConfig;
-    
+
     while (!this.isAllowed(service, identifier)) {
-      logger.debug(`Rate limit hit for ${service}:${identifier}, waiting...`);
+      logger.debug(`Rate limit hit for ${security.sanitizeLog(service)}:${security.sanitizeLog(identifier)}, waiting...`);
       await this.delay(config.delay);
     }
   }
@@ -69,19 +70,19 @@ class RateLimiter {
    */
   async execute(service, fn, identifier = 'default') {
     await this.waitForSlot(service, identifier);
-    
+
     try {
       const result = await fn();
-      
+
       // Add delay after successful execution
       const config = this.limits.get(service) || this.defaultConfig;
       if (config.delay > 0) {
         await this.delay(config.delay);
       }
-      
+
       return result;
     } catch (error) {
-      logger.error(`Rate limited execution failed for ${service}:`, error);
+      logger.error(`Rate limited execution failed for ${security.sanitizeLog(service)}:`, error);
       throw error;
     }
   }
@@ -94,10 +95,10 @@ class RateLimiter {
     const key = `${service}:${identifier}`;
     const queue = this.queues.get(key) || [];
     const now = Date.now();
-    
+
     // Count recent requests
     const recentRequests = queue.filter(time => now - time <= config.window).length;
-    
+
     return {
       service,
       identifier,
@@ -116,7 +117,7 @@ class RateLimiter {
     if (identifier) {
       const key = `${service}:${identifier}`;
       this.queues.set(key, []);
-      logger.info(`Rate limit reset for ${key}`);
+      logger.info(`Rate limit reset for ${security.sanitizeLog(key)}`);
     } else {
       // Reset all identifiers for the service
       for (const [key] of this.queues.entries()) {
@@ -124,7 +125,7 @@ class RateLimiter {
           this.queues.set(key, []);
         }
       }
-      logger.info(`Rate limits reset for all ${service} identifiers`);
+      logger.info(`Rate limits reset for all ${security.sanitizeLog(service)} identifiers`);
     }
   }
 
@@ -133,10 +134,10 @@ class RateLimiter {
    */
   getAllStatuses() {
     const statuses = {};
-    
+
     for (const [service] of this.limits.entries()) {
       statuses[service] = {};
-      
+
       for (const [key] of this.queues.entries()) {
         if (key.startsWith(`${service}:`)) {
           const identifier = key.split(':')[1];
@@ -144,7 +145,7 @@ class RateLimiter {
         }
       }
     }
-    
+
     return statuses;
   }
 
@@ -161,19 +162,19 @@ class RateLimiter {
   cleanup() {
     const now = Date.now();
     let cleaned = 0;
-    
+
     for (const [key, queue] of this.queues.entries()) {
       const service = key.split(':')[0];
       const config = this.limits.get(service) || this.defaultConfig;
-      
+
       const originalLength = queue.length;
       while (queue.length > 0 && now - queue[0] > config.window) {
         queue.shift();
       }
-      
+
       cleaned += originalLength - queue.length;
     }
-    
+
     if (cleaned > 0) {
       logger.debug(`Rate limiter cleanup: ${cleaned} old entries removed`);
     }
